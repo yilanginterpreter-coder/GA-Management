@@ -349,5 +349,3 @@ function renderAll(){
 const dateEl=document.getElementById("todayDate");
 if(dateEl)dateEl.textContent=new Date().toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"});
 renderAll();
-```
-
