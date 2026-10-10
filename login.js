@@ -1,3 +1,4 @@
+
 import {
   signInWithEmailAndPassword,
   signOut,
@@ -5,10 +6,17 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 
 import {
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+
+import {
   auth,
+  db,
   authPersistenceReady
 } from "./firebase-init.js";
 
+const loginScreen = document.getElementById("login-screen");
 const loginForm = document.getElementById("login-form");
 const emailInput = document.getElementById("login-email");
 const passwordInput = document.getElementById("login-password");
@@ -17,17 +25,46 @@ const appContent = document.getElementById("app-content");
 const logoutButton = document.getElementById("logout-button");
 
 function showMessage(message) {
-  if (loginMessage) loginMessage.textContent = message;
+  if (loginMessage) {
+    loginMessage.textContent = message;
+  }
 }
 
-function showLogin() {
-  if (loginForm) loginForm.hidden = false;
+function showLogin(message = "") {
+  if (loginScreen) loginScreen.hidden = false;
   if (appContent) appContent.hidden = true;
+  showMessage(message);
 }
 
 function showApp() {
-  if (loginForm) loginForm.hidden = true;
+  if (loginScreen) loginScreen.hidden = true;
   if (appContent) appContent.hidden = false;
+  showMessage("");
+}
+
+function validRole(role) {
+  return [
+    "main_admin",
+    "ga_admin",
+    "admin_operational"
+  ].includes(role);
+}
+
+async function checkUserRole(user) {
+  const userRef = doc(db, "users", user.uid);
+  const userSnapshot = await getDoc(userRef);
+
+  if (!userSnapshot.exists()) {
+    throw new Error("ROLE_NOT_FOUND");
+  }
+
+  const userData = userSnapshot.data();
+
+  if (userData.active !== true || !validRole(userData.role)) {
+    throw new Error("ROLE_INVALID");
+  }
+
+  return userData.role;
 }
 
 if (loginForm) {
@@ -38,16 +75,34 @@ if (loginForm) {
     try {
       await authPersistenceReady;
 
-      await signInWithEmailAndPassword(
+      const credential = await signInWithEmailAndPassword(
         auth,
         emailInput.value.trim(),
         passwordInput.value
       );
 
-      showMessage("");
+      await credential.user.reload();
+
+      if (!credential.user.emailVerified) {
+        await signOut(auth);
+        showLogin("Email belum diverifikasi. Periksa email kamu.");
+        return;
+      }
+
+      await checkUserRole(credential.user);
+      showMessage("Login berhasil.");
     } catch (error) {
-      console.error("Login gagal:", error.code);
-      showMessage("Login gagal. Periksa email dan password.");
+      console.error("Login gagal:", error.code || error.message);
+
+      await signOut(auth).catch(() => {});
+
+      if (error.message === "ROLE_NOT_FOUND") {
+        showLogin("Akun belum diberi akses oleh Main Admin.");
+      } else if (error.message === "ROLE_INVALID") {
+        showLogin("Akun tidak aktif atau role tidak valid.");
+      } else {
+        showLogin("Login gagal. Periksa email, password, dan akses akun.");
+      }
     }
   });
 }
@@ -65,11 +120,20 @@ if (logoutButton) {
 
 await authPersistenceReady;
 
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    showApp();
-  } else {
+showLogin();
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
     showLogin();
+    return;
+  }
+
+  try {
+    await checkUserRole(user);
+    showApp();
+  } catch (error) {
+    console.error("Pemeriksaan akses gagal:", error.code || error.message);
+    await signOut(auth);
+    showLogin("Akun belum memiliki akses yang valid.");
   }
 });
-
