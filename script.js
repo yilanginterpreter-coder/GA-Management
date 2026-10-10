@@ -32,16 +32,33 @@ function logActivity(message){
   db.activity.unshift({id:uid(),message,date:new Date().toLocaleString("id-ID")});
   db.activity=db.activity.slice(0,30);
 }
-function showPage(name,button){
-  const page=document.getElementById("page-"+name);
-  if(!page)return;
-  document.querySelectorAll(".page").forEach(el=>el.classList.remove("active"));
+
+function showPage(name, button) {
+  const page = document.getElementById("page-" + name);
+  if (!page) return;
+
+  document.querySelectorAll(".page").forEach(function (el) {
+    el.classList.remove("active");
+  });
   page.classList.add("active");
-  document.querySelectorAll(".nav-link").forEach(el=>el.classList.remove("active"));
-  const nav=button||document.querySelector('.nav-link[onclick*="\\''+name+'\\'"]');
-  if(nav)nav.classList.add("active");
-  const label=nav?nav.textContent.trim():page.querySelector("h1")?.textContent||name;
-  document.getElementById("pageBreadcrumb").textContent=label;
+
+  document.querySelectorAll(".nav-link").forEach(function (el) {
+    el.classList.remove("active");
+  });
+
+  if (button) {
+    button.classList.add("active");
+  }
+
+  const breadcrumb = document.getElementById("pageBreadcrumb");
+  const label = button
+    ? button.textContent.trim()
+    : (page.querySelector("h1")?.textContent || name);
+
+  if (breadcrumb) {
+    breadcrumb.textContent = label;
+  }
+
   renderAll();
 }
 const fields={
