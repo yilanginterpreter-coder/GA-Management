@@ -9,8 +9,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 </head>
-<body>
-<div class="app">
+<body>  
+<div id="login-screen" hidden>
+  <div class="login-card">
+    <h1>GA Management</h1>
+    <p>Silakan masuk untuk melanjutkan.</p>
+    <form id="login-form">
+      <label for="login-email">Email</label>
+      <input
+        id="login-email"
+        type="email"
+        autocomplete="username"
+        required
+      >
+
+      <label for="login-password">Password</label>
+      <input
+        id="login-password"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+
+      <button type="submit">Masuk</button>
+      <p id="login-message" role="status"></p>
+    </form>
+  </div>
+</div>
+
+<div class="app" id="app-content">
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-icon"><i class="fa-solid fa-leaf"></i></div>
@@ -105,7 +132,6 @@
       <footer>GA Management <span>•</span> General Affairs Operations</footer>
     </div>
   </main>
-</div>
 <div class="modal" id="dataModal">
   <div class="modal-card">
     <div class="modal-heading"><div><span class="eyebrow">GA MANAGEMENT</span><h2 id="modalTitle">Tambah Data</h2></div><button class="icon-button" onclick="closeForm()"><i class="fa-solid fa-xmark"></i></button></div>
@@ -113,6 +139,7 @@
   </div>
 </div>
 <div id="toast" class="toast"></div>
+</div>
 <script src="script.js"></script>
 <script type="module" src="firebase-init.js"></script>  
 </body>
