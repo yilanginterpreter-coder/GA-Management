@@ -300,8 +300,23 @@ let firestoreInventoryPreview = [];
 window.receiveFirestoreInventory = function(items) {
   firestoreInventoryPreview = items;
   console.log("Preview Inventory Firebase diterima:", items.length, "barang");
-};
+  const table = document.getElementById("firestoreInventoryTable");
+  if (!table) return;
 
+  table.replaceChildren();
+
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+
+    ["code", "name", "category", "stock", "minimum", "unit", "location"].forEach((field) => {
+      const cell = document.createElement("td");
+      cell.textContent = item[field] ?? "-";
+      row.appendChild(cell);
+    });
+
+    table.appendChild(row);
+  });
+};
 function renderInventory(){
   const search=(document.getElementById("inventorySearch")?.value||"").toLowerCase();
   const items=db.inventory.filter(item=>(item.name+" "+item.code+" "+item.category).toLowerCase().includes(search));
