@@ -270,12 +270,11 @@ function deleteRecord(type,id){
   logActivity("Menghapus "+config[type].label+": "+(item.name||item.code||item.plate||"data"));
   saveDB();notify("Data dihapus.");
 }
-function deleteTransaction(id){
-  const transaction=db.transactions.find(x=>x.id===id);
-  if(!transaction||!confirm("Hapus riwayat transaksi ini? Stok tidak akan diubah kembali."))return;
-  db.transactions=db.transactions.filter(x=>x.id!==id);
-  logActivity("Menghapus catatan riwayat transaksi "+transaction.code);
-  saveDB();notify("Riwayat dihapus. Catatan ini tidak membalikkan stok.");
+function deleteTransaction(id) {
+  notify(
+    "Penghapusan transaksi sementara dinonaktifkan. " +
+    "Fitur arsip dan penyesuaian stok khusus Main Admin sedang disiapkan."
+  );
 }
 function statusHTML(value,stock=null,minimum=null){
   let cls="neutral",text=value||"-";
