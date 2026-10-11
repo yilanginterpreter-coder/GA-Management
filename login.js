@@ -57,7 +57,8 @@ async function readTransactionsFromFirestore() {
     "Transaksi Firebase berhasil dibaca. Jumlah transaksi:",
     transactions.length
   );
-
+window.receiveFirestoreTransactions(transactions);
+  
   return transactions;
 }
 
