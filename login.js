@@ -61,19 +61,6 @@ async function readTransactionsFromFirestore() {
   return transactions;
 }
 
-
-  const snapshot = await getDocs(collection(db, "inventory"));
-  const items = snapshot.docs.map((item) => ({
-    ...item.data(),
-    id: item.id
-  }));
-
-  console.log("Inventory Firebase berhasil dibaca. Jumlah barang:", items.length);
-  window.receiveFirestoreInventory(items);
-  return items;
-}
-
-
 function showMessage(message) {
   if (loginMessage) {
     loginMessage.textContent = message;
