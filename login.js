@@ -1,6 +1,7 @@
 
 import {
   signInWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
@@ -84,10 +85,11 @@ if (loginForm) {
       await credential.user.reload();
 
       if (!credential.user.emailVerified) {
-        await signOut(auth);
-        showLogin("Email belum diverifikasi. Periksa email kamu.");
-        return;
-      }
+  await sendEmailVerification(credential.user);
+  await signOut(auth);
+  showLogin("Email verifikasi sudah dikirim. Periksa kotak masuk atau folder Spam.");
+  return;
+}
 
       await checkUserRole(credential.user);
       showMessage("Login berhasil.");
