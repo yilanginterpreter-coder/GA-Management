@@ -61,7 +61,7 @@
       <button class="nav-link" onclick="showPage('vendors',this)"><i class="fa-solid fa-truck-field"></i> Vendor</button>
       <p class="nav-label">SYSTEM</p>
       <button class="nav-link" onclick="showPage('reports',this)"><i class="fa-solid fa-chart-pie"></i> Laporan</button>
-      <button class="nav-link" onclick="showPage('users',this)"><i class="fa-solid fa-users-gear"></i> Pengguna & Akses</button>
+      <button class="nav-link" data-main-admin-only onclick="showPage('users',this)"><i class="fa-solid fa-users-gear"></i> Pengguna & Akses</button>
     </nav>
     <div class="sidebar-bottom"><i class="fa-solid fa-shield-halved"></i><span>GA Management v1.0<small>Internal workspace</small></span></div>
     <button type="button" id="logout-button">
