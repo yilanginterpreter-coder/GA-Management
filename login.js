@@ -142,9 +142,17 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  try {
+   try {
+    await user.reload();
+
+    if (!user.emailVerified) {
+      await signOut(auth);
+      showLogin("Silakan verifikasi email sebelum masuk.");
+      return;
+    }
+
     const role = await checkUserRole(user);
-showApp(role);
+    showApp(role);
   } catch (error) {
     console.error("Pemeriksaan akses gagal:", error.code || error.message);
     await signOut(auth);
