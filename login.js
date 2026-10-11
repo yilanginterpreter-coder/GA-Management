@@ -26,7 +26,42 @@ const loginMessage = document.getElementById("login-message");
 const appContent = document.getElementById("app-content");
 const logoutButton = document.getElementById("logout-button");
 
+
 async function readInventoryFromFirestore() {
+  const snapshot = await getDocs(collection(db, "inventory"));
+
+  const items = snapshot.docs.map((item) => ({
+    ...item.data(),
+    id: item.id
+  }));
+
+  console.log(
+    "Inventory Firebase berhasil dibaca. Jumlah barang:",
+    items.length
+  );
+
+  window.receiveFirestoreInventory(items);
+
+  return items;
+}
+
+async function readTransactionsFromFirestore() {
+  const snapshot = await getDocs(collection(db, "transactions"));
+
+  const transactions = snapshot.docs.map((item) => ({
+    ...item.data(),
+    id: item.id
+  }));
+
+  console.log(
+    "Transaksi Firebase berhasil dibaca. Jumlah transaksi:",
+    transactions.length
+  );
+
+  return transactions;
+}
+
+
   const snapshot = await getDocs(collection(db, "inventory"));
   const items = snapshot.docs.map((item) => ({
     ...item.data(),
@@ -169,6 +204,10 @@ onAuthStateChanged(auth, async (user) => {
     showApp(role);
 readInventoryFromFirestore().catch((error) => {
   console.error("Gagal membaca Inventory Firebase:", error.code || error.message);
+});
+
+readTransactionsFromFirestore().catch((error) => {
+  console.error("Gagal membaca Transactions Firebase:", error.code || error.message);
 });
 
   } catch (error) {
