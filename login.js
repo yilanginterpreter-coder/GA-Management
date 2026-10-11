@@ -8,9 +8,10 @@ import {
 
 import {
   doc,
-  getDoc
+  getDoc,
+  collection,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
-
 import {
   auth,
   db,
@@ -24,6 +25,18 @@ const passwordInput = document.getElementById("login-password");
 const loginMessage = document.getElementById("login-message");
 const appContent = document.getElementById("app-content");
 const logoutButton = document.getElementById("logout-button");
+
+async function readInventoryFromFirestore() {
+  const snapshot = await getDocs(collection(db, "inventory"));
+  const items = snapshot.docs.map((item) => ({
+    ...item.data(),
+    id: item.id
+  }));
+
+  console.log("Inventory Firebase berhasil dibaca. Jumlah barang:", items.length);
+  return items;
+}
+
 
 function showMessage(message) {
   if (loginMessage) {
@@ -153,6 +166,10 @@ onAuthStateChanged(auth, async (user) => {
 
     const role = await checkUserRole(user);
     showApp(role);
+readInventoryFromFirestore().catch((error) => {
+  console.error("Gagal membaca Inventory Firebase:", error.code || error.message);
+});
+
   } catch (error) {
     console.error("Pemeriksaan akses gagal:", error.code || error.message);
     await signOut(auth);
