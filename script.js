@@ -343,8 +343,24 @@ window.receiveFirestoreTransactions = function(transactions) {
     "Transaksi operasional Firebase diterima:",
     realTransactions.length
   );
-};
 
+  const table = document.getElementById("firestoreTransactionTable");
+  if (!table) return;
+
+  table.replaceChildren();
+
+  realTransactions.forEach((transaction) => {
+    const row = document.createElement("tr");
+
+    ["date", "itemId", "type", "quantity", "note"].forEach((field) => {
+      const cell = document.createElement("td");
+      cell.textContent = transaction[field] ?? "-";
+      row.appendChild(cell);
+    });
+
+    table.appendChild(row);
+  });
+};
 function renderInventory(){
   const search=(document.getElementById("inventorySearch")?.value||"").toLowerCase();
   const items=db.inventory.filter(item=>(item.name+" "+item.code+" "+item.category).toLowerCase().includes(search));
