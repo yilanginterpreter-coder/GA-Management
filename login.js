@@ -34,6 +34,7 @@ async function readInventoryFromFirestore() {
   }));
 
   console.log("Inventory Firebase berhasil dibaca. Jumlah barang:", items.length);
+  window.receiveFirestoreInventory(items);
   return items;
 }
 
