@@ -180,6 +180,13 @@ function openForm(type,id=null){
   if(!definitions){notify("Form tidak ditemukan.");return}
   if(type==="transaction"&&db.inventory.length===0){notify("Tambahkan barang terlebih dahulu.");return}
   document.getElementById("formFields").innerHTML=definitions.map(field=>fieldHTML(field,record||{})).join("");
+  if(type==="inventory" && id){
+  const stockInput=form.elements.namedItem("stock");
+  if(stockInput){
+    stockInput.readOnly=true;
+    stockInput.title="Stok hanya dapat diubah melalui Transaksi Stok";
+  }
+}
   if(type==="transaction"&&record){
     const select=form.elements.itemId;
     if(select)select.value=record.itemId;
@@ -207,10 +214,19 @@ document.getElementById("dataForm").addEventListener("submit",event=>{
   if(["code","plate"].some(key=>data[key]&&list.some(item=>item[key]?.toLowerCase()===data[key].trim().toLowerCase()&&item.id!==editId))){
     notify("Kode atau nomor tersebut sudah digunakan.");return;
   }
-  if(formType==="inventory"){
-    data.stock=Number(data.stock)||0;
-    data.minimum=Number(data.minimum)||0;
+ if(formType==="inventory"){
+  data.stock=Number(data.stock)||0;
+  data.minimum=Number(data.minimum)||0;
+
+  if(editId){
+    const existingItem=list.find(item=>item.id===editId);
+    if(!existingItem){
+      notify("Barang tidak ditemukan.");
+      return;
+    }
+    data.stock=existingItem.stock;
   }
+}
   if(formType==="assets")data.value=Number(data.value)||0;
   if(formType==="accommodation"){
     data.capacity=Number(data.capacity)||0;
