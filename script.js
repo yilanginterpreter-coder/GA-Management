@@ -34,6 +34,12 @@ function logActivity(message){
 }
 
 function showPage(name, button) {
+    if (
+    name === "users" &&
+    document.body.dataset.userRole !== "main_admin"
+  ) {
+    return;
+  }
   const page = document.getElementById("page-" + name);
   if (!page) return;
 
