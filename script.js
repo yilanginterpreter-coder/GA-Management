@@ -333,6 +333,18 @@ window.receiveFirestoreInventory = function(items) {
     table.appendChild(row);
   });
 };
+
+window.receiveFirestoreTransactions = function(transactions) {
+  const realTransactions = transactions.filter(
+    (transaction) => transaction.testOnly !== true
+  );
+
+  console.log(
+    "Transaksi operasional Firebase diterima:",
+    realTransactions.length
+  );
+};
+
 function renderInventory(){
   const search=(document.getElementById("inventorySearch")?.value||"").toLowerCase();
   const items=db.inventory.filter(item=>(item.name+" "+item.code+" "+item.category).toLowerCase().includes(search));
