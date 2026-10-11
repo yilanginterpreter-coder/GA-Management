@@ -37,9 +37,10 @@ function showLogin(message = "") {
   showMessage(message);
 }
 
-function showApp() {
+function showApp(role) {
   if (loginScreen) loginScreen.hidden = true;
   if (appContent) appContent.hidden = false;
+  document.body.dataset.userRole = role;
   showMessage("");
 }
 
@@ -131,8 +132,8 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   try {
-    await checkUserRole(user);
-    showApp();
+    const role = await checkUserRole(user);
+showApp(role);
   } catch (error) {
     console.error("Pemeriksaan akses gagal:", error.code || error.message);
     await signOut(auth);
