@@ -51,14 +51,14 @@
     <p class="nav-label">MAIN MENU</p>
     <nav>
       <button class="nav-link active" onclick="showPage('dashboard',this)"><i class="fa-solid fa-grid-2"></i> Dashboard</button>
-      <button class="nav-link" onclick="showPage('inventory',this)"><i class="fa-solid fa-boxes-stacked"></i> Inventory & Stok</button>
+      <button class="nav-link" data-ga-admin-allowed onclick="showPage('inventory',this)"><i class="fa-solid fa-boxes-stacked"></i> Inventory & Stok</button>
       <button class="nav-link" onclick="showPage('assets',this)"><i class="fa-solid fa-laptop"></i> Aset Perusahaan</button>
       <button class="nav-link" onclick="showPage('vehicles',this)"><i class="fa-solid fa-car"></i> Kendaraan</button>
-      <button class="nav-link" onclick="showPage('facilities',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
+      <button class="nav-link" data-ga-admin-allowed onclick="showPage('facilities',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
       <button class="nav-link" onclick="showPage('requests',this)"><i class="fa-solid fa-clipboard-list"></i> Permintaan Karyawan</button>
       <button class="nav-link" onclick="showPage('accommodation',this)"><i class="fa-solid fa-house"></i> Mess & Akomodasi</button>
-      <button class="nav-link" onclick="showPage('canteen',this)"><i class="fa-solid fa-utensils"></i> Kantin</button>
-      <button class="nav-link" onclick="showPage('vendors',this)"><i class="fa-solid fa-truck-field"></i> Vendor</button>
+      <button class="nav-link" data-ga-admin-allowed onclick="showPage('canteen',this)"><i class="fa-solid fa-utensils"></i> Kantin</button>
+      <button class="nav-link" data-ga-admin-allowed onclick="showPage('vendors',this)"><i class="fa-solid fa-truck-field"></i> Vendor</button>
       <p class="nav-label">SYSTEM</p>
       <button class="nav-link" onclick="showPage('reports',this)"><i class="fa-solid fa-chart-pie"></i> Laporan</button>
       <button class="nav-link" data-main-admin-only onclick="showPage('users',this)"><i class="fa-solid fa-users-gear"></i> Pengguna & Akses</button>
