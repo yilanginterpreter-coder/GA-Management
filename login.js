@@ -40,10 +40,15 @@ function showLogin(message = "") {
 function showApp(role) {
   if (loginScreen) loginScreen.hidden = true;
   if (appContent) appContent.hidden = false;
+
   document.body.dataset.userRole = role;
+
+  document.querySelectorAll("[data-main-admin-only]").forEach((menu) => {
+    menu.hidden = role !== "main_admin";
+  });
+
   showMessage("");
 }
-
 function validRole(role) {
   return [
     "main_admin",
