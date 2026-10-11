@@ -42,7 +42,13 @@ function showApp(role) {
   if (appContent) appContent.hidden = false;
 
   document.body.dataset.userRole = role;
-
+document.querySelectorAll(".nav-link").forEach((menu) => {
+  if (role === "main_admin") {
+    menu.hidden = false;
+  } else {
+    menu.hidden = !menu.hasAttribute("data-ga-admin-allowed");
+  }
+});
   document.querySelectorAll("[data-main-admin-only]").forEach((menu) => {
     menu.hidden = role !== "main_admin";
   });
