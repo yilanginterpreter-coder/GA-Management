@@ -295,6 +295,13 @@ function commonColumns(type){
     return col(key,label,render);
   }).concat(actionCol(type));
 }
+let firestoreInventoryPreview = [];
+
+window.receiveFirestoreInventory = function(items) {
+  firestoreInventoryPreview = items;
+  console.log("Preview Inventory Firebase diterima:", items.length, "barang");
+};
+
 function renderInventory(){
   const search=(document.getElementById("inventorySearch")?.value||"").toLowerCase();
   const items=db.inventory.filter(item=>(item.name+" "+item.code+" "+item.category).toLowerCase().includes(search));
