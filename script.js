@@ -171,26 +171,43 @@ function fieldHTML(field,record={}){
   return `<div class="field ${type==="textarea"?"full":""}"><label>${esc(label)}${required?' <span style="color:#C45E55">*</span>':""}</label>${control}</div>`;
 }
 function openForm(type,id=null){
-  formType=type;editId=id;
+  if(type==="transaction"){
+    notify("Transaksi stok Firebase belum diaktifkan. Sistem penyimpanan aman sedang disiapkan.");
+    return;
+  }
+
+  formType=type;
+  editId=id;
+
   const form=document.getElementById("dataForm");
   form.reset();
-  const record=id?(type==="transaction"?db.transactions.find(x=>x.id===id):db[config[type]?.collection||type]?.find(x=>x.id===id)):null;
-  document.getElementById("modalTitle").textContent=(id?"Edit ":"Tambah ")+(config[type]?.title||"Transaksi Stok");
+
+  const record=id
+    ? db[config[type]?.collection||type]?.find(x=>x.id===id)
+    : null;
+
+  document.getElementById("modalTitle").textContent=
+    (id?"Edit ":"Tambah ")+(config[type]?.title||"Transaksi Stok");
+
   const definitions=fields[type];
-  if(!definitions){notify("Form tidak ditemukan.");return}
-  if(type==="transaction"&&db.inventory.length===0){notify("Tambahkan barang terlebih dahulu.");return}
-  document.getElementById("formFields").innerHTML=definitions.map(field=>fieldHTML(field,record||{})).join("");
+
+  if(!definitions){
+    notify("Form tidak ditemukan.");
+    return;
+  }
+
+  document.getElementById("formFields").innerHTML=
+    definitions.map(field=>fieldHTML(field,record||{})).join("");
+
   if(type==="inventory" && id){
-  const stockInput=form.elements.namedItem("stock");
-  if(stockInput){
-    stockInput.readOnly=true;
-    stockInput.title="Stok hanya dapat diubah melalui Transaksi Stok";
+    const stockInput=form.elements.namedItem("stock");
+
+    if(stockInput){
+      stockInput.readOnly=true;
+      stockInput.title="Stok hanya dapat diubah melalui Transaksi Stok";
+    }
   }
-}
-  if(type==="transaction"&&record){
-    const select=form.elements.itemId;
-    if(select)select.value=record.itemId;
-  }
+
   document.getElementById("dataModal").classList.add("open");
 }
 function closeForm(){
