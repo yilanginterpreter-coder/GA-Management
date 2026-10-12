@@ -126,7 +126,8 @@ async function saveStockTransactionToFirestore(data) {
 
     transaction.update(inventoryRef, {
   stock: newStock,
-  lastTransactionId: transactionRef.id
+  lastTransactionId: transactionRef.id,
+  lastStockBefore: currentStock
 });
 
     transaction.set(transactionRef, {
