@@ -64,7 +64,84 @@ window.receiveFirestoreTransactions(transactions);
   
   return transactions;
 }
+async function saveStockTransactionToFirestore(data) {
+  const user = auth.currentUser;
 
+  if (!user) {
+    throw new Error("Silakan login terlebih dahulu.");
+  }
+
+  const userSnapshot = await getDoc(doc(db, "users", user.uid));
+
+  if (!userSnapshot.exists()) {
+    throw new Error("Data pengguna tidak ditemukan.");
+  }
+
+  const profile = userSnapshot.data();
+
+  if (
+    profile.active !== true ||
+    !["main_admin", "ga_admin"].includes(profile.role)
+  ) {
+    throw new Error("Akun tidak memiliki izin transaksi stok.");
+  }
+
+  const quantity = Number(data.quantity);
+
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new Error("Jumlah harus bilangan bulat lebih dari nol.");
+  }
+
+  if (!["Masuk", "Keluar"].includes(data.type)) {
+    throw new Error("Jenis transaksi tidak valid.");
+  }
+
+  if (!data.itemId) {
+    throw new Error("Pilih barang terlebih dahulu.");
+  }
+
+  const inventoryRef = doc(db, "inventory", data.itemId);
+  const transactionRef = doc(collection(db, "transactions"));
+
+  await runTransaction(db, async (transaction) => {
+    const inventorySnapshot = await transaction.get(inventoryRef);
+
+    if (!inventorySnapshot.exists()) {
+      throw new Error("Barang tidak ditemukan di Firebase.");
+    }
+
+    const item = inventorySnapshot.data();
+    const currentStock = item.stock;
+
+    if (!Number.isSafeInteger(currentStock) || currentStock < 0) {
+      throw new Error("Data stok Firebase tidak valid.");
+    }
+
+    const newStock =
+      currentStock + (data.type === "Masuk" ? quantity : -quantity);
+
+    if (!Number.isSafeInteger(newStock) || newStock < 0) {
+      throw new Error("Stok tidak mencukupi atau hasil stok tidak valid.");
+    }
+
+    transaction.update(inventoryRef, {
+      stock: newStock
+    });
+
+    transaction.set(transactionRef, {
+      itemId: data.itemId,
+      code: item.code || data.itemId,
+      name: item.name || "",
+      type: data.type,
+      quantity: quantity,
+      date: data.date || new Date().toISOString().slice(0, 10),
+      note: data.note || "",
+      createdBy: user.uid,
+      createdAt: serverTimestamp(),
+      testOnly: false
+    });
+  });
+}
 function showMessage(message) {
   if (loginMessage) {
     loginMessage.textContent = message;
