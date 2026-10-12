@@ -137,6 +137,8 @@ async function saveStockTransactionToFirestore(data) {
       date: data.date || new Date().toISOString().slice(0, 10),
       note: data.note || "",
       createdBy: user.uid,
+      createdByName: profile.name || "Pengguna",
+      createdByRole: profile.role,
       createdAt: serverTimestamp(),
       testOnly: false
     });
