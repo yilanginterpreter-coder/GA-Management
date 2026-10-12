@@ -136,6 +136,8 @@ async function saveStockTransactionToFirestore(data) {
       name: item.name || "",
       type: data.type,
       quantity: quantity,
+      stockBefore: currentStock,
+      stockAfter: newStock,
       date: data.date || new Date().toISOString().slice(0, 10),
       note: data.note || "",
       createdBy: user.uid,
