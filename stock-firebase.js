@@ -239,8 +239,8 @@ const filteredInventory = inventory.filter(item => {
           </tr>
         `).join("")
       : `<tr>
-          <td colspan="7" class="empty-cell">
-            Belum ada barang Firebase.
+          <td colspan="8" class="empty-cell">
+           Tidak ada barang yang cocok dengan pencarian.
           </td>
         </tr>`;
   }
