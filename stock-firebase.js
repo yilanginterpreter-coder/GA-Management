@@ -848,10 +848,12 @@ $("dataForm")?.addEventListener("submit", async event => {
     const data = Object.fromEntries(new FormData(form));
 
     if (mode === "inventory") {
-      await saveInventory(data);
-    } else {
-      await saveStockTransaction(data);
-    }
+  await saveInventory(data);
+} else if (mode === "editInventory") {
+  await saveEditInventory(form.dataset.editItemId, data);
+} else {
+  await saveStockTransaction(data);
+}
 
     form.dataset.firebaseMode = "";
     form.dataset.firebaseTransaction = "";
@@ -863,9 +865,11 @@ $("dataForm")?.addEventListener("submit", async event => {
     }
 
     message(
-      mode === "inventory"
-        ? "Barang Firebase berhasil ditambahkan."
-        : "Transaksi Firebase berhasil disimpan."
+     mode === "inventory"
+  ? "Barang Firebase berhasil ditambahkan."
+  : mode === "editInventory"
+    ? "Data barang Firebase berhasil diperbarui."
+    : "Transaksi Firebase berhasil disimpan."
     );
 
     await refresh();
