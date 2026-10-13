@@ -59,6 +59,18 @@ function setText(id, value) {
 }
 
 function hideOldInventoryUI() {
+  // Sembunyikan tombol Tambah Barang sistem lama
+  document
+    .querySelectorAll("#page-inventory button")
+    .forEach(button => {
+      const action = button.getAttribute("onclick") || "";
+
+      if (/^\s*openForm\(['"]inventory['"]/.test(action)) {
+        button.hidden = true;
+        button.style.display = "none";
+      }
+    });
+
   const localTable = $("inventoryTable")?.closest("article");
 
   if (localTable) {
