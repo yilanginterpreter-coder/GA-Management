@@ -20,6 +20,7 @@ let transactions = [];
 let busy = false;
 let ready = false;
 let activeRole = null;
+let authGeneration = 0;
 
 const canWrite = () =>
   ["main_admin", "ga_admin"].includes(activeRole);
@@ -35,7 +36,12 @@ const html = value =>
 
 const localDate = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0")
+  ].join("-");
 };
 
 function message(text) {
@@ -60,10 +66,14 @@ function hideOldInventoryUI() {
     const toolbar = localTable.querySelector(".toolbar");
 
     if (toolbar) {
-      toolbar.querySelector("#inventorySearch")?.setAttribute("hidden", "");
+      toolbar.querySelector("#inventorySearch")
+        ?.setAttribute("hidden", "");
 
-      const transactionButton = [...toolbar.querySelectorAll("button")]
-        .find(b => b.getAttribute("onclick")?.includes("'transaction'"));
+      const transactionButton = [
+        ...toolbar.querySelectorAll("button")
+      ].find(b =>
+        b.getAttribute("onclick")?.includes("'transaction'")
+      );
 
       if (transactionButton) {
         transactionButton.hidden = !canWrite();
@@ -74,11 +84,15 @@ function hideOldInventoryUI() {
   const localHistory = $("transactionTable")?.closest("article");
   if (localHistory) localHistory.hidden = true;
 
-  const addButton = [
-    ...document.querySelectorAll("#page-inventory .page-heading button")
-  ].find(b => b.getAttribute("onclick")?.includes("'inventory'"));
+  const oldAddButton = [
+    ...document.querySelectorAll(
+      "#page-inventory .page-heading button"
+    )
+  ].find(b =>
+    b.getAttribute("onclick")?.includes("'inventory'")
+  );
 
-  if (addButton) addButton.hidden = true;
+  if (oldAddButton) oldAddButton.hidden = true;
 
   const firebaseTitle = $("firestoreInventoryTable")
     ?.closest("article")
@@ -96,20 +110,39 @@ function hideOldInventoryUI() {
     firebaseDescription.textContent =
       "Stok tersimpan di Firestore. Perubahan stok hanya melalui transaksi yang sah.";
   }
+}
 
-  const trxTitle = $("firestoreTransactionTable")
-    ?.closest(".table-wrap")
-    ?.previousElementSibling;
+function ensureAddButton() {
+  const page = $("page-inventory");
+  if (!page) return;
 
-  if (trxTitle?.tagName === "H3") {
-    trxTitle.textContent = "Riwayat Transaksi Firebase";
+  let button = $("addFirebaseInventoryBtn");
+
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "addFirebaseInventoryBtn";
+    button.type = "button";
+    button.className = "btn btn-primary";
+    button.textContent = "+ Tambah Barang Firebase";
+    button.addEventListener("click", openInventoryForm);
+
+    const heading = page.querySelector(".page-heading");
+
+    if (heading) {
+      heading.appendChild(button);
+    } else {
+      page.prepend(button);
+    }
   }
+
+  button.hidden = !ready || !canWrite();
 }
 
 function draw() {
-  if (!ready) return;
-
   hideOldInventoryUI();
+  ensureAddButton();
+
+  if (!ready) return;
 
   const low = inventory.filter(
     i => Number(i.stock) <= Number(i.minimum)
@@ -119,7 +152,9 @@ function draw() {
     (n, i) => n + (Number(i.stock) || 0), 0
   );
 
-  for (const id of ["totalItems", "inventoryCount", "reportItems"]) {
+  for (const id of [
+    "totalItems", "inventoryCount", "reportItems"
+  ]) {
     setText(id, inventory.length);
   }
 
@@ -137,29 +172,45 @@ function draw() {
 
   if (inventoryTable) {
     inventoryTable.innerHTML = inventory.length
-      ? inventory.map(i =>
-          `<tr>${[
-            "code", "name", "category", "stock",
-            "minimum", "unit", "location"
-          ].map(k => `<td>${html(i[k] ?? "-")}</td>`).join("")}</tr>`
-        ).join("")
-      : '<tr><td colspan="7" class="empty-cell">Belum ada barang Firebase.</td></tr>';
+      ? inventory.map(i => `
+          <tr>
+            ${[
+              "code", "name", "category", "stock",
+              "minimum", "unit", "location"
+            ].map(k =>
+              `<td>${html(i[k] ?? "-")}</td>`
+            ).join("")}
+          </tr>
+        `).join("")
+      : `<tr>
+          <td colspan="7" class="empty-cell">
+            Belum ada barang Firebase.
+          </td>
+        </tr>`;
   }
 
   const historyTable = $("firestoreTransactionTable");
 
   if (historyTable) {
     historyTable.innerHTML = transactions.length
-      ? transactions.map(t =>
-          `<tr>${[
-            t.date,
-            t.code || t.itemId,
-            t.type,
-            t.quantity,
-            t.note
-          ].map(v => `<td>${html(v ?? "-")}</td>`).join("")}</tr>`
-        ).join("")
-      : '<tr><td colspan="5" class="empty-cell">Belum ada transaksi operasional.</td></tr>';
+      ? transactions.map(t => `
+          <tr>
+            ${[
+              t.date,
+              t.code || t.itemId,
+              t.type,
+              t.quantity,
+              t.note
+            ].map(v =>
+              `<td>${html(v ?? "-")}</td>`
+            ).join("")}
+          </tr>
+        `).join("")
+      : `<tr>
+          <td colspan="5" class="empty-cell">
+            Belum ada transaksi operasional.
+          </td>
+        </tr>`;
   }
 
   const dashboard = $("dashboardStock");
@@ -172,10 +223,18 @@ function draw() {
             <td>${html(i.category)}</td>
             <td>${html(i.stock)} ${html(i.unit)}</td>
             <td>${html(i.minimum)}</td>
-            <td>${Number(i.stock) === 0 ? "Habis" : "Stok Menipis"}</td>
+            <td>
+              ${Number(i.stock) === 0
+                ? "Habis"
+                : "Stok Menipis"}
+            </td>
           </tr>
         `).join("")
-      : '<tr><td colspan="5" class="empty-cell">Tidak ada stok menipis.</td></tr>';
+      : `<tr>
+          <td colspan="5" class="empty-cell">
+            Tidak ada stok menipis.
+          </td>
+        </tr>`;
   }
 
   const activity = $("recentActivity");
@@ -186,20 +245,36 @@ function draw() {
           <div class="activity-row">
             <span class="activity-dot"></span>
             <div>
-              <p>${html(t.type)}: ${html(t.name || t.code || t.itemId)} (${html(t.quantity)})</p>
+              <p>
+                ${html(t.type)}:
+                ${html(t.name || t.code || t.itemId)}
+                (${html(t.quantity)})
+              </p>
               <small>${html(t.date)}</small>
             </div>
           </div>
         `).join("")
-      : '<div class="empty-state"><p>Belum ada transaksi operasional Firebase.</p></div>';
+      : `<div class="empty-state">
+          <p>Belum ada transaksi operasional Firebase.</p>
+        </div>`;
   }
 }
 
 async function refresh() {
+  const generation = authGeneration;
+  const uid = auth.currentUser?.uid;
+
   const [items, records] = await Promise.all([
     getDocs(collection(db, "inventory")),
     getDocs(collection(db, "transactions"))
   ]);
+
+  if (
+    generation !== authGeneration ||
+    auth.currentUser?.uid !== uid
+  ) {
+    return;
+  }
 
   inventory = items.docs.map(d => ({
     ...d.data(),
@@ -220,105 +295,294 @@ async function refresh() {
   draw();
 }
 
-function openTransactionForm() {
-  if (!auth.currentUser || !canWrite()) {
-    return message("Akun ini tidak memiliki izin transaksi stok.");
-  }
-
-  if (!ready) {
-    return message("Data Firebase belum selesai dimuat.");
-  }
-
-  if (!inventory.length) {
-    return message("Belum ada barang di Inventory Firebase.");
-  }
-
+function openModal(title, fieldsHTML, mode) {
   const fields = $("formFields");
   const form = $("dataForm");
+  const modal = $("dataModal");
 
-  if (!fields || !form) {
-    return message("Form transaksi tidak ditemukan.");
+  if (!fields || !form || !modal) {
+    message("Form Firebase tidak ditemukan.");
+    return;
   }
 
   form.reset();
+  form.dataset.firebaseMode = mode;
 
-  $("modalTitle").textContent = "Transaksi Stok Firebase";
+  // Hapus penanda lama agar tidak bentrok.
+  form.dataset.firebaseTransaction = "";
 
-  fields.innerHTML = `
-    <div class="field">
-      <label>Pilih Barang *</label>
-      <select name="itemId" required>
-        <option value="">Pilih barang</option>
-        ${inventory.map(i => `
-          <option value="${html(i.id)}">
-            ${html(i.code)} — ${html(i.name)}
-            (stok: ${html(i.stock)} ${html(i.unit)})
-          </option>
-        `).join("")}
-      </select>
-    </div>
+  const modalTitle = $("modalTitle");
+  if (modalTitle) modalTitle.textContent = title;
 
-    <div class="field">
-      <label>Jenis Transaksi *</label>
-      <select name="type" required>
-        <option value="">Pilih jenis</option>
-        <option value="Masuk">Masuk</option>
-        <option value="Keluar">Keluar</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Jumlah *</label>
-      <input name="quantity" type="number" min="1" step="1" required>
-    </div>
-
-    <div class="field">
-      <label>Tanggal *</label>
-      <input name="date" type="date" value="${localDate()}" required>
-    </div>
-
-    <div class="field full">
-      <label>Catatan</label>
-      <input
-        name="note"
-        type="text"
-        maxlength="500"
-        placeholder="Nomor dokumen / tujuan"
-      >
-    </div>
-  `;
-
-  $("dataModal").classList.add("open");
-  form.dataset.firebaseTransaction = "true";
+  fields.innerHTML = fieldsHTML;
+  modal.classList.add("open");
 }
 
-async function saveTransaction(data) {
-  const user = auth.currentUser;
-
-  if (!user || !canWrite()) {
-    throw new Error("Tidak memiliki izin transaksi stok.");
+function openInventoryForm() {
+  if (!auth.currentUser || !canWrite()) {
+    message("Akun ini tidak memiliki izin tambah barang.");
+    return;
   }
 
-  const profileSnapshot = await getDoc(
+  if (!ready) {
+    message("Data Firebase belum selesai dimuat.");
+    return;
+  }
+
+  openModal(
+    "Tambah Barang Firebase",
+    `
+      <div class="field">
+        <label>Kode Barang *</label>
+        <input
+          name="code"
+          required
+          maxlength="60"
+          placeholder="ATK-001"
+          pattern="[A-Za-z0-9_-]{2,60}"
+        >
+      </div>
+
+      <div class="field">
+        <label>Nama Barang *</label>
+        <input
+          name="name"
+          required
+          maxlength="150"
+          placeholder="Pulpen Hitam"
+        >
+      </div>
+
+      <div class="field">
+        <label>Kategori *</label>
+        <input
+          name="category"
+          required
+          maxlength="100"
+          placeholder="ATK"
+        >
+      </div>
+
+      <div class="field">
+        <label>Satuan *</label>
+        <input
+          name="unit"
+          required
+          maxlength="40"
+          placeholder="pcs"
+        >
+      </div>
+
+      <div class="field">
+        <label>Minimum Stok *</label>
+        <input
+          name="minimum"
+          type="number"
+          min="0"
+          step="1"
+          value="10"
+          required
+        >
+      </div>
+
+      <div class="field">
+        <label>Lokasi *</label>
+        <input
+          name="location"
+          required
+          maxlength="150"
+          placeholder="Gudang GA"
+        >
+      </div>
+
+      <div class="field full">
+        <p>
+          Stok awal otomatis 0.
+          Isi stok menggunakan Transaksi Masuk.
+        </p>
+      </div>
+    `,
+    "inventory"
+  );
+}
+
+function openTransactionForm() {
+  if (!auth.currentUser || !canWrite()) {
+    message("Akun ini tidak memiliki izin transaksi stok.");
+    return;
+  }
+
+  if (!ready) {
+    message("Data Firebase belum selesai dimuat.");
+    return;
+  }
+
+  if (!inventory.length) {
+    message("Belum ada barang di Inventory Firebase.");
+    return;
+  }
+
+  openModal(
+    "Transaksi Stok Firebase",
+    `
+      <div class="field">
+        <label>Pilih Barang *</label>
+        <select name="itemId" required>
+          <option value="">Pilih barang</option>
+          ${inventory.map(i => `
+            <option value="${html(i.id)}">
+              ${html(i.code)} — ${html(i.name)}
+              (stok: ${html(i.stock)} ${html(i.unit)})
+            </option>
+          `).join("")}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Jenis Transaksi *</label>
+        <select name="type" required>
+          <option value="">Pilih jenis</option>
+          <option value="Masuk">Masuk</option>
+          <option value="Keluar">Keluar</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Jumlah *</label>
+        <input
+          name="quantity"
+          type="number"
+          min="1"
+          step="1"
+          required
+        >
+      </div>
+
+      <div class="field">
+        <label>Tanggal *</label>
+        <input
+          name="date"
+          type="date"
+          value="${localDate()}"
+          required
+        >
+      </div>
+
+      <div class="field full">
+        <label>Catatan</label>
+        <input
+          name="note"
+          type="text"
+          maxlength="500"
+          placeholder="Nomor dokumen / tujuan"
+        >
+      </div>
+    `,
+    "transaction"
+  );
+}
+
+async function getAuthorizedProfile() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("Silakan login kembali.");
+  }
+
+  const snapshot = await getDoc(
     doc(db, "users", user.uid)
   );
 
-  if (!profileSnapshot.exists()) {
+  if (!snapshot.exists()) {
     throw new Error("Profil pengguna tidak ditemukan.");
   }
 
-  const profile = profileSnapshot.data();
+  const profile = snapshot.data();
 
   if (
     profile.active !== true ||
     !["main_admin", "ga_admin"].includes(profile.role)
   ) {
-    throw new Error("Akun tidak diizinkan melakukan transaksi.");
+    throw new Error("Akun tidak memiliki izin.");
   }
+
+  return { user, profile };
+}
+
+async function saveInventory(data) {
+  const { user, profile } = await getAuthorizedProfile();
+
+  const code = String(data.code || "").trim().toUpperCase();
+  const name = String(data.name || "").trim();
+  const category = String(data.category || "").trim();
+  const unit = String(data.unit || "").trim();
+  const storageLocation = String(data.location || "").trim();
+
+  const rawMinimum = String(data.minimum ?? "").trim();
+  const minimum = Number(rawMinimum);
+
+  if (!/^[A-Z0-9_-]{2,60}$/.test(code)) {
+    throw new Error(
+      "Kode harus 2–60 karakter: huruf, angka, _ atau -."
+    );
+  }
+
+  for (const [label, value, max] of [
+    ["Nama barang", name, 150],
+    ["Kategori", category, 100],
+    ["Satuan", unit, 40],
+    ["Lokasi", storageLocation, 150]
+  ]) {
+    if (!value || value.length > max) {
+      throw new Error(`${label} wajib diisi, maksimal ${max} karakter.`);
+    }
+  }
+
+  if (
+    !/^\d+$/.test(rawMinimum) ||
+    !Number.isSafeInteger(minimum)
+  ) {
+    throw new Error(
+      "Minimum stok harus bilangan bulat 0 atau lebih."
+    );
+  }
+
+  const itemRef = doc(db, "inventory", code);
+
+  await runTransaction(db, async tx => {
+    const existing = await tx.get(itemRef);
+
+    if (existing.exists()) {
+      throw new Error(
+        `Kode ${code} sudah digunakan. Gunakan kode lain.`
+      );
+    }
+
+    tx.set(itemRef, {
+      code,
+      name,
+      category,
+      unit,
+      location: storageLocation,
+      minimum,
+      stock: 0,
+      createdBy: user.uid,
+      createdByName: profile.name,
+      createdByRole: profile.role,
+      createdAt: serverTimestamp()
+    });
+  });
+}
+
+async function saveStockTransaction(data) {
+  const { user, profile } = await getAuthorizedProfile();
 
   const quantity = Number(data.quantity);
 
-  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+  if (
+    !Number.isSafeInteger(quantity) ||
+    quantity <= 0
+  ) {
     throw new Error("Jumlah harus bilangan bulat positif.");
   }
 
@@ -326,14 +590,19 @@ async function saveTransaction(data) {
     throw new Error("Jenis transaksi tidak valid.");
   }
 
-  if (typeof data.itemId !== "string" || !data.itemId) {
+  if (
+    typeof data.itemId !== "string" ||
+    !data.itemId
+  ) {
     throw new Error("Pilih barang yang valid.");
   }
 
   if (
     typeof data.date !== "string" ||
     !/^\d{4}-\d{2}-\d{2}$/.test(data.date) ||
-    Number.isNaN(new Date(`${data.date}T00:00:00`).getTime())
+    Number.isNaN(
+      new Date(`${data.date}T00:00:00`).getTime()
+    )
   ) {
     throw new Error("Tanggal tidak valid.");
   }
@@ -356,7 +625,10 @@ async function saveTransaction(data) {
 
     const item = snap.data();
 
-    if (!Number.isSafeInteger(item.stock) || item.stock < 0) {
+    if (
+      !Number.isSafeInteger(item.stock) ||
+      item.stock < 0
+    ) {
       throw new Error("Stok Firebase tidak valid.");
     }
 
@@ -364,14 +636,22 @@ async function saveTransaction(data) {
       typeof item.code !== "string" ||
       typeof item.name !== "string"
     ) {
-      throw new Error("Identitas barang Firebase tidak lengkap.");
+      throw new Error(
+        "Identitas barang Firebase tidak lengkap."
+      );
     }
 
     const newStock =
-      item.stock + (data.type === "Masuk" ? quantity : -quantity);
+      item.stock +
+      (data.type === "Masuk" ? quantity : -quantity);
 
-    if (!Number.isSafeInteger(newStock) || newStock < 0) {
-      throw new Error("Stok tidak mencukupi atau hasil stok tidak valid.");
+    if (
+      !Number.isSafeInteger(newStock) ||
+      newStock < 0
+    ) {
+      throw new Error(
+        "Stok tidak mencukupi atau hasil stok tidak valid."
+      );
     }
 
     tx.update(itemRef, {
@@ -399,7 +679,7 @@ async function saveTransaction(data) {
   });
 }
 
-// Menangkap klik sebelum fungsi lama dijalankan.
+// Tangkap tombol lama sebelum fungsi localStorage berjalan.
 document.addEventListener("click", event => {
   const trigger = event.target.closest("[onclick]");
   if (!trigger) return;
@@ -410,10 +690,12 @@ document.addEventListener("click", event => {
     event.preventDefault();
     event.stopImmediatePropagation();
     openTransactionForm();
+
   } else if (/^\s*openForm\(['"]inventory['"]/.test(action)) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    message("Penambahan/edit barang Firebase belum diaktifkan.");
+    openInventoryForm();
+
   } else if (/^\s*deleteRecord\(['"]inventory['"]/.test(action)) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -421,9 +703,12 @@ document.addEventListener("click", event => {
   }
 }, true);
 
-// Mencegah fungsi lama menyimpan transaksi ke localStorage.
+// Satu handler untuk kedua formulir Firebase.
 $("dataForm")?.addEventListener("submit", async event => {
-  if (event.currentTarget.dataset.firebaseTransaction !== "true") {
+  const form = event.currentTarget;
+  const mode = form.dataset.firebaseMode;
+
+  if (!["inventory", "transaction"].includes(mode)) {
     return;
   }
 
@@ -434,32 +719,45 @@ $("dataForm")?.addEventListener("submit", async event => {
 
   busy = true;
 
-  const form = event.currentTarget;
-  const submit = form.querySelector('button[type="submit"]');
+  const submit = form.querySelector(
+    'button[type="submit"]'
+  );
 
   if (submit) submit.disabled = true;
 
   try {
-    await saveTransaction(
-      Object.fromEntries(new FormData(form))
-    );
+    const data = Object.fromEntries(new FormData(form));
 
+    if (mode === "inventory") {
+      await saveInventory(data);
+    } else {
+      await saveStockTransaction(data);
+    }
+
+    form.dataset.firebaseMode = "";
     form.dataset.firebaseTransaction = "";
 
     if (typeof window.closeForm === "function") {
       window.closeForm();
+    } else {
+      $("dataModal")?.classList.remove("open");
     }
 
-    message("Transaksi Firebase berhasil disimpan.");
+    message(
+      mode === "inventory"
+        ? "Barang Firebase berhasil ditambahkan."
+        : "Transaksi Firebase berhasil disimpan."
+    );
+
     await refresh();
 
   } catch (error) {
-    console.error("Gagal menyimpan transaksi Firebase:", error);
+    console.error("Gagal menyimpan data Firebase:", error);
 
     message(
       error.code === "permission-denied"
-        ? "Firebase Rules produksi masih menolak transaksi. Jangan ubah Rules sebelum pengujian."
-        : (error.message || "Transaksi gagal disimpan.")
+        ? "Firebase Rules menolak penyimpanan. Periksa izin create inventory atau role akun."
+        : (error.message || "Penyimpanan gagal.")
     );
 
   } finally {
@@ -468,7 +766,7 @@ $("dataForm")?.addEventListener("submit", async event => {
   }
 }, true);
 
-// Menjaga dashboard tetap sinkron saat tampilan lama dirender.
+// Pertahankan sinkronisasi dengan dashboard lama.
 const legacyRender = window.renderAll;
 
 if (typeof legacyRender === "function") {
@@ -479,13 +777,16 @@ if (typeof legacyRender === "function") {
   };
 }
 
-// Menghapus penanda transaksi ketika modal ditutup.
+// Bersihkan mode ketika modal ditutup.
 const oldClose = window.closeForm;
 
 if (typeof oldClose === "function") {
   window.closeForm = function (...args) {
-    if ($("dataForm")) {
-      $("dataForm").dataset.firebaseTransaction = "";
+    const form = $("dataForm");
+
+    if (form) {
+      form.dataset.firebaseMode = "";
+      form.dataset.firebaseTransaction = "";
     }
 
     return oldClose.apply(this, args);
@@ -495,21 +796,28 @@ if (typeof oldClose === "function") {
 await authPersistenceReady;
 
 onAuthStateChanged(auth, async user => {
+  const generation = ++authGeneration;
+
   ready = false;
   inventory = [];
   transactions = [];
   activeRole = null;
+
+  draw();
 
   if (!user) return;
 
   try {
     await user.reload();
 
+    if (generation !== authGeneration) return;
     if (!user.emailVerified) return;
 
     const profile = await getDoc(
       doc(db, "users", user.uid)
     );
+
+    if (generation !== authGeneration) return;
 
     if (
       !profile.exists() ||
@@ -523,196 +831,16 @@ onAuthStateChanged(auth, async user => {
     await refresh();
 
   } catch (error) {
-    console.error("Gagal memuat data stok Firebase:", error);
+    if (generation !== authGeneration) return;
+
+    console.error(
+      "Gagal memuat data stok Firebase:",
+      error
+    );
 
     message(
       "Gagal memuat stok Firebase. Periksa koneksi dan izin akses."
     );
   }
 });
-// ============================================
-// TAMBAH BARANG FIREBASE
-// ============================================
 
-import {
-  doc,
-  setDoc,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
-
-import {
-  auth,
-  db
-} from "./firebase-init.js";
-
-// Buat tombol Tambah Barang Firebase
-function createAddInventoryButton() {
-  const page = document.getElementById("inventory");
-
-  if (!page) return;
-
-  if (document.getElementById("addFirebaseInventoryBtn")) {
-    return;
-  }
-
-  const button = document.createElement("button");
-
-  button.id = "addFirebaseInventoryBtn";
-  button.className = "btn btn-primary";
-  button.textContent = "+ Tambah Barang Firebase";
-
-  button.onclick = openFirebaseInventoryForm;
-
-  page.prepend(button);
-}
-
-// Form tambah barang
-function openFirebaseInventoryForm() {
-  const modal = document.getElementById("dataModal");
-  const formFields = document.getElementById("formFields");
-
-  if (!modal || !formFields) {
-    alert("Form tidak ditemukan.");
-    return;
-  }
-
-  formFields.innerHTML = `
-    <label>Kode Barang</label>
-    <input
-      name="code"
-      required
-      placeholder="ATK-001"
-    >
-
-    <label>Nama Barang</label>
-    <input
-      name="name"
-      required
-      placeholder="Pulpen Hitam"
-    >
-
-    <label>Kategori</label>
-    <input
-      name="category"
-      required
-      placeholder="ATK"
-    >
-
-    <label>Satuan</label>
-    <input
-      name="unit"
-      required
-      placeholder="pcs"
-    >
-
-    <label>Minimum Stok</label>
-    <input
-      name="minimum"
-      type="number"
-      min="0"
-      value="10"
-      required
-    >
-
-    <label>Lokasi</label>
-    <input
-      name="location"
-      required
-      placeholder="Gudang GA"
-    >
-
-    <p>Stok awal otomatis 0.</p>
-  `;
-
-  modal.style.display = "flex";
-
-  const form = document.getElementById("dataForm");
-
-  form.onsubmit = async function(event) {
-    event.preventDefault();
-
-    const data = new FormData(form);
-
-    const code = String(data.get("code"))
-      .trim()
-      .toUpperCase();
-
-    const name = String(data.get("name")).trim();
-    const category = String(data.get("category")).trim();
-    const unit = String(data.get("unit")).trim();
-    const location = String(data.get("location")).trim();
-    const minimum = Number(data.get("minimum"));
-
-    if (!/^[A-Z0-9_-]{2,60}$/.test(code)) {
-      alert("Kode barang hanya boleh huruf, angka, _ dan -.");
-      return;
-    }
-
-    if (!Number.isSafeInteger(minimum) || minimum < 0) {
-      alert("Minimum stok tidak valid.");
-      return;
-    }
-
-    const user = auth.currentUser;
-
-    if (!user) {
-      alert("Silakan login kembali.");
-      return;
-    }
-
-    try {
-      const userSnap = await (
-        await import(
-          "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js"
-        )
-      ).getDoc(doc(db, "users", user.uid));
-
-      if (!userSnap.exists()) {
-        throw new Error("Profil pengguna tidak ditemukan.");
-      }
-
-      const profile = userSnap.data();
-
-      if (
-        profile.active !== true ||
-        !["main_admin", "ga_admin"].includes(profile.role)
-      ) {
-        throw new Error("Akun tidak memiliki izin tambah barang.");
-      }
-
-      const inventoryRef = doc(db, "inventory", code);
-
-      await setDoc(inventoryRef, {
-        code,
-        name,
-        category,
-        unit,
-        location,
-        minimum,
-        stock: 0,
-        createdBy: user.uid,
-        createdByName: profile.name,
-        createdByRole: profile.role,
-        createdAt: serverTimestamp()
-      });
-
-      alert("Barang berhasil ditambahkan ke Firebase!");
-
-      if (typeof closeForm === "function") {
-        closeForm();
-      } else {
-        modal.style.display = "none";
-      }
-
-      location.reload();
-
-    } catch (error) {
-      console.error(error);
-      alert("Gagal menambahkan barang: " + error.message);
-    }
-  };
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  createAddInventoryButton();
-});
