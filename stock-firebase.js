@@ -112,7 +112,7 @@ function hideOldInventoryUI() {
     ?.querySelector("h3");
 
   if (firebaseTitle) {
-    firebaseTitle.textContent = "Inventory Firebase (Data Utama)";
+    firebaseTitle.textContent = "Daftar Barang";
   }
 
   const firebaseDescription = $("firestoreInventoryTable")
@@ -132,20 +132,21 @@ function ensureAddButton() {
   let button = $("addFirebaseInventoryBtn");
 
   if (!button) {
-    button = document.createElement("button");
-    button.id = "addFirebaseInventoryBtn";
-    button.type = "button";
-    button.className = "btn btn-primary";
-    button.textContent = "+ Tambah Barang Firebase";
-    button.addEventListener("click", openInventoryForm);
+button = document.createElement("button");
+button.id = "addFirebaseInventoryBtn";
+button.type = "button";
+button.className = "primary-button";
+button.innerHTML = '<i class="fa-solid fa-plus"></i> Tambah Barang';
+button.addEventListener("click", openInventoryForm);
 
     const heading = page.querySelector(".page-heading");
 
-    if (heading) {
-      heading.appendChild(button);
-    } else {
-      page.prepend(button);
-    }
+    
+if (heading) {
+  heading.appendChild(button);
+} else {
+  page.prepend(button);
+}
   }
 
   button.hidden = !ready || !canWrite();
@@ -323,7 +324,7 @@ const filteredInventory = inventory.filter(item => {
           </div>
         `).join("")
       : `<div class="empty-state">
-          <p>Belum ada transaksi operasional Firebase.</p>
+          <p>Belum ada transaksi.</p>
         </div>`;
   }
 }
@@ -369,7 +370,7 @@ function openModal(title, fieldsHTML, mode) {
   const modal = $("dataModal");
 
   if (!fields || !form || !modal) {
-    message("Form Firebase tidak ditemukan.");
+    message("Form tidak ditemukan.");
     return;
   }
 
@@ -397,7 +398,7 @@ function openEditInventoryForm(itemId) {
   }
 
   openModal(
-    "Edit Barang Firebase",
+    "Edit Barang",
     `
       <div class="field">
         <label>Kode Barang</label>
@@ -479,7 +480,7 @@ async function saveEditInventory(itemId, data) {
     const snapshot = await tx.get(itemRef);
 
     if (!snapshot.exists()) {
-      throw new Error("Barang tidak ditemukan di Firebase.");
+      throw new Error("Barang tidak ditemukan.");
     }
 
     tx.update(itemRef, {
@@ -498,12 +499,12 @@ function openInventoryForm() {
   }
 
   if (!ready) {
-    message("Data Firebase belum selesai dimuat.");
+    message("Data belum selesai dimuat.");
     return;
   }
 
   openModal(
-    "Tambah Barang Firebase",
+    "Tambah Barang",
     `
       <div class="field">
         <label>Kode Barang *</label>
@@ -586,17 +587,17 @@ function openTransactionForm() {
   }
 
   if (!ready) {
-    message("Data Firebase belum selesai dimuat.");
+    message("Data belum selesai dimuat.");
     return;
   }
 
   if (!inventory.length) {
-    message("Belum ada barang di Inventory Firebase.");
+    message("Belum ada barang di Inventory.");
     return;
   }
 
   openModal(
-    "Transaksi Stok Firebase",
+    "Transaksi Stok",
     `
       <div class="field">
         <label>Pilih Barang *</label>
@@ -793,7 +794,7 @@ async function saveStockTransaction(data) {
     const snap = await tx.get(itemRef);
 
     if (!snap.exists()) {
-      throw new Error("Barang tidak ditemukan di Firebase.");
+      throw new Error("Barang tidak ditemukan.");
     }
 
     const item = snap.data();
@@ -802,7 +803,7 @@ async function saveStockTransaction(data) {
       !Number.isSafeInteger(item.stock) ||
       item.stock < 0
     ) {
-      throw new Error("Stok Firebase tidak valid.");
+      throw new Error("Stok tidak valid.");
     }
 
     if (
@@ -810,7 +811,7 @@ async function saveStockTransaction(data) {
       typeof item.name !== "string"
     ) {
       throw new Error(
-        "Identitas barang Firebase tidak lengkap."
+        "Identitas barang tidak lengkap."
       );
     }
 
@@ -877,7 +878,7 @@ document.addEventListener("click", event => {
   } else if (/^\s*deleteRecord\(['"]inventory['"]/.test(action)) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    message("Penghapusan barang Firebase tidak diizinkan.");
+    message("Penghapusan barang tidak diizinkan.");
   }
 }, true);
 
@@ -925,20 +926,20 @@ $("dataForm")?.addEventListener("submit", async event => {
 
     message(
      mode === "inventory"
-  ? "Barang Firebase berhasil ditambahkan."
+  ? "Barang berhasil ditambahkan."
   : mode === "editInventory"
-    ? "Data barang Firebase berhasil diperbarui."
-    : "Transaksi Firebase berhasil disimpan."
+    ? "Data barang berhasil diperbarui."
+    : "Transaksi berhasil disimpan."
     );
 
     await refresh();
 
   } catch (error) {
-    console.error("Gagal menyimpan data Firebase:", error);
+    console.error("Gagal menyimpan data:", error);
 
     message(
       error.code === "permission-denied"
-        ? "Firebase Rules menolak penyimpanan. Periksa izin create inventory atau role akun."
+        ? "Rules menolak penyimpanan. Periksa izin create inventory atau role akun."
         : (error.message || "Penyimpanan gagal.")
     );
 
@@ -1016,12 +1017,12 @@ onAuthStateChanged(auth, async user => {
     if (generation !== authGeneration) return;
 
     console.error(
-      "Gagal memuat data stok Firebase:",
+      "Gagal memuat data stok:",
       error
     );
 
     message(
-      "Gagal memuat stok Firebase. Periksa koneksi dan izin akses."
+      "Gagal memuat stok . Periksa koneksi dan izin akses."
     );
   }
 });
