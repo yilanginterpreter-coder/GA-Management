@@ -147,12 +147,16 @@ function openAssetForm(code = null) {
 }
 
 function closeAssetForm() {
-  document.getElementById("dataModal")?.classList.remove("open");
+  const modal = document.getElementById("dataModal");
+  if (modal) {
+    modal.classList.remove("open");
+    delete modal.dataset.mode;
+  }
   editingCode = null;
 }
 
 async function saveAsset(event) {
-  if (window.formType !== "assets_firebase") return;
+  if (document.getElementById("dataModal")?.dataset.mode !== "assets_firebase") return;
 
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -377,8 +381,8 @@ function setupAssets() {
 const originalOpenAssetForm = openAssetForm;
 
 function openFirebaseAssetForm(code = null) {
-  window.formType = "assets_firebase";
-  originalOpenAssetForm(code);
+ originalOpenAssetForm(code);
+document.getElementById("dataModal").dataset.mode = "assets_firebase";
 }
 
 // Dipakai oleh tombol tambah/edit aset.
