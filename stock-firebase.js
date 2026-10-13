@@ -121,7 +121,7 @@ function hideOldInventoryUI() {
 
   if (firebaseDescription) {
     firebaseDescription.textContent =
-      "Stok tersimpan. Perubahan stok hanya melalui transaksi yang sah.";
+      "Pantau ketersediaan barang dan kelola stok secara terpusat.";
   }
 }
 
