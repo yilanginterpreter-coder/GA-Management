@@ -121,7 +121,7 @@ function hideOldInventoryUI() {
 
   if (firebaseDescription) {
     firebaseDescription.textContent =
-      "Stok tersimpan di Firestore. Perubahan stok hanya melalui transaksi yang sah.";
+      "Stok tersimpan. Perubahan stok hanya melalui transaksi yang sah.";
   }
 }
 
@@ -164,7 +164,7 @@ function ensureInventorySearch() {
     search.id = "firebaseInventorySearch";
     search.type = "search";
     search.placeholder = "Cari kode, nama, kategori, lokasi...";
-    search.setAttribute("aria-label", "Cari barang Firebase");
+    search.setAttribute("aria-label", "Cari barang");
     search.style.cssText =
       "width:100%;max-width:380px;padding:11px 14px;" +
       "margin:14px 0;border:1px solid #d9e2df;" +
