@@ -317,7 +317,112 @@ function openModal(title, fieldsHTML, mode) {
   fields.innerHTML = fieldsHTML;
   modal.classList.add("open");
 }
+function openEditInventoryForm(itemId) {
+  if (!auth.currentUser || !canWrite()) {
+    return message("Akun ini tidak memiliki izin edit barang.");
+  }
 
+  const item = inventory.find(i => i.id === itemId);
+
+  if (!item) {
+    return message("Barang tidak ditemukan.");
+  }
+
+  openModal(
+    "Edit Barang Firebase",
+    `
+      <div class="field">
+        <label>Kode Barang</label>
+        <input value="${html(item.code)}" disabled>
+      </div>
+
+      <div class="field">
+        <label>Nama Barang *</label>
+        <input name="name" required maxlength="150"
+          value="${html(item.name)}">
+      </div>
+
+      <div class="field">
+        <label>Kategori *</label>
+        <input name="category" required maxlength="100"
+          value="${html(item.category)}">
+      </div>
+
+      <div class="field">
+        <label>Satuan *</label>
+        <input name="unit" required maxlength="40"
+          value="${html(item.unit)}">
+      </div>
+
+      <div class="field">
+        <label>Minimum Stok *</label>
+        <input name="minimum" type="number"
+          min="0" step="1" required
+          value="${html(item.minimum)}">
+      </div>
+
+      <div class="field">
+        <label>Lokasi *</label>
+        <input name="location" required maxlength="150"
+          value="${html(item.location)}">
+      </div>
+
+      <div class="field full">
+        <p>Kode barang dan stok tidak dapat diedit langsung.</p>
+      </div>
+    `,
+    "editInventory"
+  );
+
+  $("dataForm").dataset.editItemId = itemId;
+}
+
+async function saveEditInventory(itemId, data) {
+  await getAuthorizedProfile();
+
+  const name = String(data.name || "").trim();
+  const category = String(data.category || "").trim();
+  const unit = String(data.unit || "").trim();
+  const storageLocation = String(data.location || "").trim();
+  const rawMinimum = String(data.minimum ?? "").trim();
+  const minimum = Number(rawMinimum);
+
+  for (const [label, value, max] of [
+    ["Nama barang", name, 150],
+    ["Kategori", category, 100],
+    ["Satuan", unit, 40],
+    ["Lokasi", storageLocation, 150]
+  ]) {
+    if (!value || value.length > max) {
+      throw new Error(`${label} wajib diisi, maksimal ${max} karakter.`);
+    }
+  }
+
+  if (
+    !/^\d+$/.test(rawMinimum) ||
+    !Number.isSafeInteger(minimum)
+  ) {
+    throw new Error("Minimum stok harus bilangan bulat 0 atau lebih.");
+  }
+
+  const itemRef = doc(db, "inventory", itemId);
+
+  await runTransaction(db, async tx => {
+    const snapshot = await tx.get(itemRef);
+
+    if (!snapshot.exists()) {
+      throw new Error("Barang tidak ditemukan di Firebase.");
+    }
+
+    tx.update(itemRef, {
+      name,
+      category,
+      unit,
+      location: storageLocation,
+      minimum
+    });
+  });
+}
 function openInventoryForm() {
   if (!auth.currentUser || !canWrite()) {
     message("Akun ini tidak memiliki izin tambah barang.");
