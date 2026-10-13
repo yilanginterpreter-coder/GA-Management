@@ -827,7 +827,7 @@ $("dataForm")?.addEventListener("submit", async event => {
   const form = event.currentTarget;
   const mode = form.dataset.firebaseMode;
 
-  if (!["inventory", "transaction", "editInventory"].includes(mode)) {
+ if (!["inventory", "transaction", "editInventory"].includes(mode)) {
   return;
 }
 
