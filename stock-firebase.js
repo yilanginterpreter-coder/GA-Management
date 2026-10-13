@@ -530,4 +530,189 @@ onAuthStateChanged(auth, async user => {
     );
   }
 });
+// ============================================
+// TAMBAH BARANG FIREBASE
+// ============================================
 
+import {
+  doc,
+  setDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+
+import {
+  auth,
+  db
+} from "./firebase-init.js";
+
+// Buat tombol Tambah Barang Firebase
+function createAddInventoryButton() {
+  const page = document.getElementById("inventory");
+
+  if (!page) return;
+
+  if (document.getElementById("addFirebaseInventoryBtn")) {
+    return;
+  }
+
+  const button = document.createElement("button");
+
+  button.id = "addFirebaseInventoryBtn";
+  button.className = "btn btn-primary";
+  button.textContent = "+ Tambah Barang Firebase";
+
+  button.onclick = openFirebaseInventoryForm;
+
+  page.prepend(button);
+}
+
+// Form tambah barang
+function openFirebaseInventoryForm() {
+  const modal = document.getElementById("dataModal");
+  const formFields = document.getElementById("formFields");
+
+  if (!modal || !formFields) {
+    alert("Form tidak ditemukan.");
+    return;
+  }
+
+  formFields.innerHTML = `
+    <label>Kode Barang</label>
+    <input
+      name="code"
+      required
+      placeholder="ATK-001"
+    >
+
+    <label>Nama Barang</label>
+    <input
+      name="name"
+      required
+      placeholder="Pulpen Hitam"
+    >
+
+    <label>Kategori</label>
+    <input
+      name="category"
+      required
+      placeholder="ATK"
+    >
+
+    <label>Satuan</label>
+    <input
+      name="unit"
+      required
+      placeholder="pcs"
+    >
+
+    <label>Minimum Stok</label>
+    <input
+      name="minimum"
+      type="number"
+      min="0"
+      value="10"
+      required
+    >
+
+    <label>Lokasi</label>
+    <input
+      name="location"
+      required
+      placeholder="Gudang GA"
+    >
+
+    <p>Stok awal otomatis 0.</p>
+  `;
+
+  modal.style.display = "flex";
+
+  const form = document.getElementById("dataForm");
+
+  form.onsubmit = async function(event) {
+    event.preventDefault();
+
+    const data = new FormData(form);
+
+    const code = String(data.get("code"))
+      .trim()
+      .toUpperCase();
+
+    const name = String(data.get("name")).trim();
+    const category = String(data.get("category")).trim();
+    const unit = String(data.get("unit")).trim();
+    const location = String(data.get("location")).trim();
+    const minimum = Number(data.get("minimum"));
+
+    if (!/^[A-Z0-9_-]{2,60}$/.test(code)) {
+      alert("Kode barang hanya boleh huruf, angka, _ dan -.");
+      return;
+    }
+
+    if (!Number.isSafeInteger(minimum) || minimum < 0) {
+      alert("Minimum stok tidak valid.");
+      return;
+    }
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      alert("Silakan login kembali.");
+      return;
+    }
+
+    try {
+      const userSnap = await (
+        await import(
+          "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js"
+        )
+      ).getDoc(doc(db, "users", user.uid));
+
+      if (!userSnap.exists()) {
+        throw new Error("Profil pengguna tidak ditemukan.");
+      }
+
+      const profile = userSnap.data();
+
+      if (
+        profile.active !== true ||
+        !["main_admin", "ga_admin"].includes(profile.role)
+      ) {
+        throw new Error("Akun tidak memiliki izin tambah barang.");
+      }
+
+      const inventoryRef = doc(db, "inventory", code);
+
+      await setDoc(inventoryRef, {
+        code,
+        name,
+        category,
+        unit,
+        location,
+        minimum,
+        stock: 0,
+        createdBy: user.uid,
+        createdByName: profile.name,
+        createdByRole: profile.role,
+        createdAt: serverTimestamp()
+      });
+
+      alert("Barang berhasil ditambahkan ke Firebase!");
+
+      if (typeof closeForm === "function") {
+        closeForm();
+      } else {
+        modal.style.display = "none";
+      }
+
+      location.reload();
+
+    } catch (error) {
+      console.error(error);
+      alert("Gagal menambahkan barang: " + error.message);
+    }
+  };
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  createAddInventoryButton();
+});
