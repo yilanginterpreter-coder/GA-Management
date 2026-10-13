@@ -180,6 +180,15 @@ function draw() {
             ].map(k =>
               `<td>${html(i[k] ?? "-")}</td>`
             ).join("")}
+            <td>
+              ${canWrite()
+                ? `<button type="button"
+                    class="btn btn-sm edit-firebase-item"
+                    data-item-id="${html(i.id)}">
+                    Edit
+                   </button>`
+                : "-"}
+            </td>
           </tr>
         `).join("")
       : `<tr>
@@ -783,7 +792,12 @@ async function saveStockTransaction(data) {
     });
   });
 }
+document.addEventListener("click", event => {
+  const button = event.target.closest(".edit-firebase-item");
+  if (!button) return;
 
+  openEditInventoryForm(button.dataset.itemId);
+});
 // Tangkap tombol lama sebelum fungsi localStorage berjalan.
 document.addEventListener("click", event => {
   const trigger = event.target.closest("[onclick]");
@@ -813,9 +827,9 @@ $("dataForm")?.addEventListener("submit", async event => {
   const form = event.currentTarget;
   const mode = form.dataset.firebaseMode;
 
-  if (!["inventory", "transaction"].includes(mode)) {
-    return;
-  }
+  if (!["inventory", "transaction", "editInventory"].includes(mode)) {
+  return;
+}
 
   event.preventDefault();
   event.stopImmediatePropagation();
