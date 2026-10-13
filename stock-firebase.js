@@ -20,6 +20,7 @@ let transactions = [];
 let busy = false;
 let ready = false;
 let activeRole = null;
+let inventorySearchTerm = "";
 let authGeneration = 0;
 
 const canWrite = () =>
@@ -137,10 +138,46 @@ function ensureAddButton() {
 
   button.hidden = !ready || !canWrite();
 }
+function ensureInventorySearch() {
+  const table = $("firestoreInventoryTable");
+  const article = table?.closest("article");
 
+  if (!article) return;
+
+  let search = $("firebaseInventorySearch");
+
+  if (!search) {
+    search = document.createElement("input");
+    search.id = "firebaseInventorySearch";
+    search.type = "search";
+    search.placeholder = "Cari kode, nama, kategori, lokasi...";
+    search.setAttribute("aria-label", "Cari barang Firebase");
+    search.style.cssText =
+      "width:100%;max-width:380px;padding:11px 14px;" +
+      "margin:14px 0;border:1px solid #d9e2df;" +
+      "border-radius:10px;font:inherit;";
+
+    const tableWrap = table.closest(".table-wrap");
+
+    if (tableWrap) {
+      tableWrap.before(search);
+    } else {
+      table.before(search);
+    }
+
+    search.addEventListener("input", event => {
+      inventorySearchTerm = event.target.value
+        .trim()
+        .toLocaleLowerCase("id-ID");
+
+      draw();
+    });
+  }
+}
 function draw() {
   hideOldInventoryUI();
-  ensureAddButton();
+ensureAddButton();
+ensureInventorySearch();
 
   if (!ready) return;
 
@@ -167,12 +204,22 @@ function draw() {
   }
 
   setText("reportTransactions", transactions.length);
+const filteredInventory = inventory.filter(item => {
+  const searchable = [
+    item.code,
+    item.name,
+    item.category,
+    item.location,
+    item.unit
+  ].join(" ").toLocaleLowerCase("id-ID");
 
+  return searchable.includes(inventorySearchTerm);
+});
   const inventoryTable = $("firestoreInventoryTable");
 
   if (inventoryTable) {
-    inventoryTable.innerHTML = inventory.length
-      ? inventory.map(i => `
+   inventoryTable.innerHTML = filteredInventory.length
+  ? filteredInventory.map(i => `
           <tr>
             ${[
               "code", "name", "category", "stock",
