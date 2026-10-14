@@ -416,29 +416,9 @@ function renderInventory(){
 function setText(id,value){
   const el=document.getElementById(id);if(el)el.textContent=value;
 }
-function renderAll(){
-  renderInventory();
-  renderTable("vehicleTable",db.vehicles,commonColumns("vehicles"));
-  renderTable("facilityTable",db.facilities,commonColumns("facilities"));
-  renderTable("requestTable",db.requests,commonColumns("requests"));
-  renderTable("accommodationTable",db.accommodation,commonColumns("accommodation"));
-  renderTable("canteenTable",db.canteen,commonColumns("canteen"));
-  renderTable("vendorTable",db.vendors,commonColumns("vendors"));
-  setText("totalItems",db.inventory.length);
-  setText("lowStock",db.inventory.filter(item=>Number(item.stock)<=Number(item.minimum)).length);
-  setText("pendingRequests",db.requests.filter(item=>["Pending","Diproses"].includes(item.status)).length);
-  setText("reportItems",db.inventory.length);
-  setText("reportStock",db.inventory.reduce((sum,item)=>sum+(Number(item.stock)||0),0));
-  setText("reportTransactions",db.transactions.length);
-  const activity=document.getElementById("recentActivity");
-  if(activity){
-    activity.innerHTML=db.activity.length?db.activity.slice(0,8).map(item=>`<div class="activity-row"><span class="activity-dot"></span><div><p>${esc(item.message)}</p><small>${esc(item.date)}</small></div></div>`).join(""):`<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>Belum ada aktivitas.</p><small>Transaksi yang kamu catat akan muncul di sini.</small></div>`;
-  }
-  
-  
+
 function renderAll() {
   renderInventory();
-
   renderTable("vehicleTable", db.vehicles, commonColumns("vehicles"));
   renderTable("facilityTable", db.facilities, commonColumns("facilities"));
   renderTable("requestTable", db.requests, commonColumns("requests"));
@@ -450,7 +430,6 @@ function renderAll() {
   setText("lowStock", db.inventory.filter(item =>
     Number(item.stock) <= Number(item.minimum)
   ).length);
-
   setText("pendingRequests", db.requests.filter(item =>
     ["Pending", "Diproses"].includes(item.status)
   ).length);
@@ -462,32 +441,26 @@ function renderAll() {
   setText("reportTransactions", db.transactions.length);
 
   const activity = document.getElementById("recentActivity");
-
   if (activity) {
     activity.innerHTML = db.activity.length
-      ? db.activity.slice(0, 8).map(item => `
-          <div class="activity-row">
+      ? db.activity.slice(0, 8).map(item =>
+          `<div class="activity-row">
             <span class="activity-dot"></span>
             <div>
               <p>${esc(item.message)}</p>
               <small>${esc(item.date)}</small>
             </div>
-          </div>
-        `).join("")
+          </div>`
+        ).join("")
       : `<div class="empty-state">
           <i class="fa-solid fa-inbox"></i>
           <p>Belum ada aktivitas.</p>
           <small>Transaksi yang kamu catat akan muncul di sini.</small>
         </div>`;
   }
-
-  if (typeof window.renderFirestoreAssets === "function") {
-    window.renderFirestoreAssets();
-  }
 }
 
 const dateEl = document.getElementById("todayDate");
-
 if (dateEl) {
   dateEl.textContent = new Date().toLocaleDateString("id-ID", {
     day: "numeric",
