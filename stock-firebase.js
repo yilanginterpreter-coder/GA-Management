@@ -247,6 +247,7 @@ const filteredInventory = inventory.filter(item => {
    inventoryTable.innerHTML = filteredInventory.length
   ? filteredInventory.map(i => `
           <tr>
+            <td>${i.photoData ? `<button type="button" class="inventory-photo-open" data-item-id="${html(i.id)}" aria-label="Lihat foto ${html(i.name)}"><img class="inventory-photo-thumb" src="${html(i.photoData)}" alt="Foto ${html(i.name)}"></button>` : "—"}</td>
             ${[
               "code", "name", "category", "stock",
               "minimum", "unit", "location"
@@ -265,7 +266,7 @@ const filteredInventory = inventory.filter(item => {
           </tr>
         `).join("")
       : `<tr>
-          <td colspan="8" class="empty-cell">
+          <td colspan="9" class="empty-cell">
            Tidak ada barang yang cocok dengan pencarian.
           </td>
         </tr>`;
@@ -372,6 +373,88 @@ async function refresh() {
   draw();
 }
 
+// Foto disimpan sebagai JPEG kecil dalam dokumen Firestore (tanpa Storage).
+// Batas sengaja ketat agar tetap jauh di bawah batas dokumen Firestore 1 MiB.
+const MAX_PHOTO_BYTES = 90 * 1024;
+const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+const PHOTO_DIMENSION = 640;
+
+function photoField(current = "") {
+  return `
+    <div class="field full inventory-photo-field">
+      <label for="inventoryPhotoInput">Foto Barang (opsional)</label>
+      <input id="inventoryPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="inventoryPhotoHelp">
+      <small id="inventoryPhotoHelp">JPG, PNG, atau WebP maksimal 10 MB; otomatis dikompresi menjadi JPEG kecil (maks. 90 KB).</small>
+      <img id="inventoryPhotoPreview" class="inventory-photo-preview" alt="Pratinjau foto barang" ${current ? `src="${html(current)}"` : 'hidden'}>
+      <label class="inventory-photo-remove" ${current ? '' : 'hidden'}><input id="inventoryPhotoRemove" type="checkbox"> Hapus foto yang tersimpan</label>
+    </div>`;
+}
+
+function preparePhotoInput() {
+  const input = $("inventoryPhotoInput");
+  const preview = $("inventoryPhotoPreview");
+  input?.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressPhoto(file);
+      input.dataset.compressedPhoto = dataUrl;
+      preview.src = dataUrl;
+      preview.hidden = false;
+      const remove = $("inventoryPhotoRemove");
+      if (remove) remove.checked = false;
+    } catch (error) {
+      input.value = "";
+      delete input.dataset.compressedPhoto;
+      message(error.message || "Foto tidak dapat diproses.");
+    }
+  });
+}
+
+async function compressPhoto(file) {
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Pilih gambar JPG, PNG, atau WebP.");
+  }
+  if (file.size > MAX_SOURCE_BYTES) throw new Error("Foto awal maksimal 10 MB.");
+  const objectUrl = URL.createObjectURL(file);
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    let dimension = PHOTO_DIMENSION;
+    for (let attempt = 0; attempt < 7; attempt++) {
+      const scale = Math.min(1, dimension / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Browser tidak dapat memproses gambar.");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.76, 0.60, 0.44, 0.30]) {
+        const encoded = canvas.toDataURL("image/jpeg", quality);
+        if (Math.ceil(encoded.length * 0.75) <= MAX_PHOTO_BYTES) return encoded;
+      }
+      dimension = Math.floor(dimension * 0.75);
+    }
+    throw new Error("Foto terlalu kompleks untuk batas ukuran; coba gambar lain.");
+  } finally {
+    bitmap?.close?.();
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function selectedPhotoData(form) {
+  const input = form.querySelector("#inventoryPhotoInput");
+  const remove = form.querySelector("#inventoryPhotoRemove");
+  if (input?.files?.length) {
+    // Tunggu pemrosesan bila pengguna menekan Simpan terlalu cepat.
+    return { photoData: await compressPhoto(input.files[0]) };
+  }
+  if (remove?.checked) return { photoData: "" };
+  return {};
+}
+
 function openModal(title, fieldsHTML, mode) {
   const fields = $("formFields");
   const form = $("dataForm");
@@ -444,6 +527,7 @@ function openEditInventoryForm(itemId) {
           value="${html(item.location)}">
       </div>
 
+      ${photoField(item.photoData || "")}
       <div class="field full">
         <p>Kode barang dan stok tidak dapat diedit langsung.</p>
       </div>
@@ -452,6 +536,7 @@ function openEditInventoryForm(itemId) {
   );
 
   $("dataForm").dataset.editItemId = itemId;
+  preparePhotoInput();
 }
 
 async function saveEditInventory(itemId, data) {
@@ -496,7 +581,8 @@ async function saveEditInventory(itemId, data) {
       category,
       unit,
       location: storageLocation,
-      minimum
+      minimum,
+      ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
     });
   });
 }
@@ -577,6 +663,7 @@ function openInventoryForm() {
         >
       </div>
 
+      ${photoField()}
       <div class="field full">
         <p>
           Stok awal otomatis 0.
@@ -586,6 +673,7 @@ function openInventoryForm() {
     `,
     "inventory"
   );
+  preparePhotoInput();
 }
 
 function openTransactionForm() {
@@ -748,6 +836,7 @@ async function saveInventory(data) {
       location: storageLocation,
       minimum,
       stock: 0,
+      photoData: data.photoData || "",
       createdBy: user.uid,
       createdByName: profile.name,
       createdByRole: profile.role,
@@ -861,6 +950,20 @@ async function saveStockTransaction(data) {
   });
 }
 document.addEventListener("click", event => {
+  const photoButton = event.target.closest(".inventory-photo-open");
+  if (photoButton) {
+    const item = inventory.find(i => i.id === photoButton.dataset.itemId);
+    if (!item?.photoData) return;
+    const overlay = document.createElement("div");
+    overlay.className = "inventory-photo-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-label", `Foto ${item.name}`);
+    overlay.innerHTML = `<button type="button" class="inventory-photo-close" aria-label="Tutup foto">×</button><img src="${html(item.photoData)}" alt="Foto ${html(item.name)}">`;
+    overlay.addEventListener("click", e => { if (e.target === overlay || e.target.closest(".inventory-photo-close")) overlay.remove(); });
+    document.body.appendChild(overlay);
+    overlay.querySelector("button")?.focus();
+    return;
+  }
   const button = event.target.closest(".edit-firebase-item");
   if (!button) return;
 
@@ -916,8 +1019,10 @@ $("dataForm")?.addEventListener("submit", async event => {
     const data = Object.fromEntries(new FormData(form));
 
     if (mode === "inventory") {
+  Object.assign(data, await selectedPhotoData(form));
   await saveInventory(data);
 } else if (mode === "editInventory") {
+  Object.assign(data, await selectedPhotoData(form));
   await saveEditInventory(form.dataset.editItemId, data);
 } else {
   await saveStockTransaction(data);

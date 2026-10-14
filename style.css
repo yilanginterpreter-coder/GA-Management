@@ -135,3 +135,13 @@ footer span{padding:0 5px;color:var(--sage)}
 .nav-link[hidden] {
   display: none !important;
 }
+
+/* Foto Inventory: disimpan sebagai JPEG terkompresi di Firestore */
+.inventory-photo-field { display:flex; flex-direction:column; gap:8px; }
+.inventory-photo-preview { max-width:180px; max-height:180px; object-fit:contain; border-radius:10px; border:1px solid #ddd; }
+.inventory-photo-preview[hidden], .inventory-photo-remove[hidden] { display:none!important; }
+.inventory-photo-thumb { width:54px; height:54px; object-fit:cover; border-radius:7px; }
+.inventory-photo-open { background:transparent; border:0; padding:0; cursor:zoom-in; }
+.inventory-photo-overlay { position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.86); display:flex; align-items:center; justify-content:center; padding:35px; }
+.inventory-photo-overlay img { max-width:95vw; max-height:88vh; object-fit:contain; }
+.inventory-photo-close { position:absolute; right:20px; top:12px; color:white; background:transparent; border:0; font-size:40px; cursor:pointer; }
