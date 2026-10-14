@@ -150,6 +150,19 @@ if (heading) {
   }
 
   button.hidden = !ready || !canWrite();
+
+  let trxButton = $("firebaseStockTransactionBtn");
+  if (!trxButton) {
+    trxButton = document.createElement("button");
+    trxButton.id = "firebaseStockTransactionBtn";
+    trxButton.type = "button";
+    trxButton.className = "secondary-button";
+    trxButton.innerHTML = '<i class="fa-solid fa-arrow-right-arrow-left"></i> Transaksi Stok';
+    trxButton.addEventListener("click", openTransactionForm);
+    const heading = page.querySelector(".page-heading");
+    if (heading) heading.appendChild(trxButton);
+  }
+  if (trxButton) trxButton.hidden = !ready || !canWrite();
 }
 function ensureInventorySearch() {
   const table = $("firestoreInventoryTable");
@@ -259,27 +272,22 @@ const filteredInventory = inventory.filter(item => {
   }
 
   const historyTable = $("firestoreTransactionTable");
-
   if (historyTable) {
     historyTable.innerHTML = transactions.length
       ? transactions.map(t => `
           <tr>
-            ${[
-              t.date,
-              t.code || t.itemId,
-              t.type,
-              t.quantity,
-              t.note
-            ].map(v =>
-              `<td>${html(v ?? "-")}</td>`
-            ).join("")}
+            <td>${html(t.date || "-")}</td>
+            <td>${html(t.code || t.itemId || "-")}</td>
+            <td>${html(t.name || "-")}</td>
+            <td>${html(t.type || "-")}</td>
+            <td>${html(t.quantity ?? "-")}</td>
+            <td>${html(t.stockBefore ?? "-")}</td>
+            <td>${html(t.stockAfter ?? "-")}</td>
+            <td>${html(t.note || "-")}</td>
+            <td>${html(t.createdByName || "-")}</td>
           </tr>
         `).join("")
-      : `<tr>
-          <td colspan="5" class="empty-cell">
-            Belum ada transaksi operasional.
-          </td>
-        </tr>`;
+      : `<tr><td colspan="9" class="empty-cell">Belum ada transaksi operasional.</td></tr>`;
   }
 
   const dashboard = $("dashboardStock");
@@ -352,7 +360,7 @@ async function refresh() {
 
   transactions = records.docs
     .map(d => ({ ...d.data(), id: d.id }))
-    .filter(t => t.testOnly === false);
+    .filter(t => t.testOnly !== true);
 
   transactions.sort(
     (a, b) =>
