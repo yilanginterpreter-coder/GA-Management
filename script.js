@@ -210,10 +210,19 @@ function openForm(type,id=null){
 
   document.getElementById("dataModal").classList.add("open");
 }
-function closeForm(){
-  document.getElementById("dataModal").classList.remove("open");
-  editId=null;formType="";
+
+function closeForm() {
+  const modal = document.getElementById("dataModal");
+
+  if (modal) {
+    modal.classList.remove("open");
+    delete modal.dataset.mode;
+  }
+
+  editId = null;
+  formType = "";
 }
+
 document.getElementById("dataModal").addEventListener("click",event=>{
   if(event.target.id==="dataModal")closeForm();
 });
@@ -409,7 +418,6 @@ function setText(id,value){
 }
 function renderAll(){
   renderInventory();
-  renderTable("assetTable",db.assets,commonColumns("assets"));
   renderTable("vehicleTable",db.vehicles,commonColumns("vehicles"));
   renderTable("facilityTable",db.facilities,commonColumns("facilities"));
   renderTable("requestTable",db.requests,commonColumns("requests"));
@@ -417,12 +425,10 @@ function renderAll(){
   renderTable("canteenTable",db.canteen,commonColumns("canteen"));
   renderTable("vendorTable",db.vendors,commonColumns("vendors"));
   setText("totalItems",db.inventory.length);
-  setText("totalAssets",db.assets.length);
   setText("lowStock",db.inventory.filter(item=>Number(item.stock)<=Number(item.minimum)).length);
   setText("pendingRequests",db.requests.filter(item=>["Pending","Diproses"].includes(item.status)).length);
   setText("reportItems",db.inventory.length);
   setText("reportStock",db.inventory.reduce((sum,item)=>sum+(Number(item.stock)||0),0));
-  setText("reportAssets",db.assets.length);
   setText("reportTransactions",db.transactions.length);
   const activity=document.getElementById("recentActivity");
   if(activity){
