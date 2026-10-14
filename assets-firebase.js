@@ -146,15 +146,17 @@ function openAssetForm(code = null) {
   modal.classList.add("open");
 }
 
+
 function closeAssetForm() {
   const modal = document.getElementById("dataModal");
+
   if (modal) {
     modal.classList.remove("open");
     delete modal.dataset.mode;
   }
+
   editingCode = null;
 }
-
 async function saveAsset(event) {
   if (document.getElementById("dataModal")?.dataset.mode !== "assets_firebase") return;
 
@@ -348,17 +350,24 @@ async function loadAssets() {
   }
 }
 
+
 function setupAssets() {
   const page = document.getElementById("page-assets");
   if (!page) return;
 
-  const addButton = page.querySelector(
-    '.page-heading button[onclick="openForm(\'assets\')"]'
-  );
+  const addButton = page.querySelector(".page-heading button");
 
   if (addButton) {
     addButton.removeAttribute("onclick");
-    addButton.addEventListener("click", () => openFirebaseAssetForm());
+
+    if (!addButton.dataset.firebaseBound) {
+      addButton.addEventListener("click", () => {
+        openFirebaseAssetForm();
+      });
+
+      addButton.dataset.firebaseBound = "true";
+    }
+
     addButton.style.display = canWrite() ? "" : "none";
   }
 
@@ -366,13 +375,18 @@ function setupAssets() {
 
   if (search) {
     search.removeAttribute("oninput");
-    search.addEventListener("input", renderAssets);
+
+    if (!search.dataset.firebaseBound) {
+      search.addEventListener("input", renderAssets);
+      search.dataset.firebaseBound = "true";
+    }
   }
 
   const form = document.getElementById("dataForm");
 
-  if (form) {
+  if (form && !form.dataset.assetFirebaseBound) {
     form.addEventListener("submit", saveAsset, true);
+    form.dataset.assetFirebaseBound = "true";
   }
 }
 
