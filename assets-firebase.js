@@ -6,13 +6,14 @@ import {
   getDocs,
   getDoc,
   setDoc,
+  runTransaction,
   updateDoc,
   serverTimestamp
-} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 import {
   onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 
 const assetCollection = collection(db, "assets");
 
@@ -143,6 +144,7 @@ function openAssetForm(code = null) {
     .map(field => fieldHTML(field, record || {}))
     .join("");
 
+  modal.dataset.mode = "assets_firebase";
   modal.classList.add("open");
 }
 
@@ -188,7 +190,7 @@ async function saveAsset(event) {
 
   const value = Number(data.value || 0);
 
-  if (!Number.isFinite(value) || value < 0) {
+  if (!Number.isFinite(value) || value < 0 || value > Number.MAX_SAFE_INTEGER) {
     message("Nilai perolehan tidak valid.");
     return;
   }
@@ -227,19 +229,16 @@ async function saveAsset(event) {
         value: payload.value
       });
     } else {
-      const existing = await getDoc(reference);
-
-      if (existing.exists()) {
-        message("Kode aset sudah digunakan.");
-        return;
-      }
-
-      await setDoc(reference, {
-        ...payload,
-        createdBy: currentUser.uid,
-        createdByName: currentProfile.name,
-        createdByRole: currentProfile.role,
-        createdAt: serverTimestamp()
+      await runTransaction(db, async transaction => {
+        const existing = await transaction.get(reference);
+        if (existing.exists()) throw new Error("Kode aset sudah digunakan.");
+        transaction.set(reference, {
+          ...payload,
+          createdBy: currentUser.uid,
+          createdByName: currentProfile.name,
+          createdByRole: currentProfile.role,
+          createdAt: serverTimestamp()
+        });
       });
     }
 
@@ -327,6 +326,8 @@ function renderAssets() {
   if (report) report.textContent = assets.length;
 }
 
+window.renderFirestoreAssets = renderAssets;
+
 async function loadAssets() {
   if (!currentUser || !currentProfile?.active) return;
 
@@ -355,7 +356,7 @@ function setupAssets() {
   const page = document.getElementById("page-assets");
   if (!page) return;
 
-  const addButton = page.querySelector(".page-heading button");
+  const addButton = page.querySelector("#addAssetButton");
 
   if (addButton) {
     addButton.removeAttribute("onclick");
@@ -395,8 +396,7 @@ function setupAssets() {
 const originalOpenAssetForm = openAssetForm;
 
 function openFirebaseAssetForm(code = null) {
- originalOpenAssetForm(code);
-document.getElementById("dataModal").dataset.mode = "assets_firebase";
+  originalOpenAssetForm(code);
 }
 
 // Dipakai oleh tombol tambah/edit aset.
@@ -408,6 +408,8 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
   currentProfile = null;
   assets = [];
+  renderAssets();
+  setupAssets();
 
   if (!user) {
     renderAssets();
