@@ -210,19 +210,10 @@ function openForm(type,id=null){
 
   document.getElementById("dataModal").classList.add("open");
 }
-
-function closeForm() {
-  const modal = document.getElementById("dataModal");
-
-  if (modal) {
-    modal.classList.remove("open");
-    delete modal.dataset.mode;
-  }
-
-  editId = null;
-  formType = "";
+function closeForm(){
+  document.getElementById("dataModal").classList.remove("open");
+  editId=null;formType="";
 }
-
 document.getElementById("dataModal").addEventListener("click",event=>{
   if(event.target.id==="dataModal")closeForm();
 });
@@ -416,57 +407,33 @@ function renderInventory(){
 function setText(id,value){
   const el=document.getElementById(id);if(el)el.textContent=value;
 }
-
-function renderAll() {
+function renderAll(){
   renderInventory();
-  renderTable("vehicleTable", db.vehicles, commonColumns("vehicles"));
-  renderTable("facilityTable", db.facilities, commonColumns("facilities"));
-  renderTable("requestTable", db.requests, commonColumns("requests"));
-  renderTable("accommodationTable", db.accommodation, commonColumns("accommodation"));
-  renderTable("canteenTable", db.canteen, commonColumns("canteen"));
-  renderTable("vendorTable", db.vendors, commonColumns("vendors"));
-
-  setText("totalItems", db.inventory.length);
-  setText("lowStock", db.inventory.filter(item =>
-    Number(item.stock) <= Number(item.minimum)
-  ).length);
-  setText("pendingRequests", db.requests.filter(item =>
-    ["Pending", "Diproses"].includes(item.status)
-  ).length);
-
-  setText("reportItems", db.inventory.length);
-  setText("reportStock", db.inventory.reduce(
-    (sum, item) => sum + (Number(item.stock) || 0), 0
-  ));
-  setText("reportTransactions", db.transactions.length);
-
-  const activity = document.getElementById("recentActivity");
-  if (activity) {
-    activity.innerHTML = db.activity.length
-      ? db.activity.slice(0, 8).map(item =>
-          `<div class="activity-row">
-            <span class="activity-dot"></span>
-            <div>
-              <p>${esc(item.message)}</p>
-              <small>${esc(item.date)}</small>
-            </div>
-          </div>`
-        ).join("")
-      : `<div class="empty-state">
-          <i class="fa-solid fa-inbox"></i>
-          <p>Belum ada aktivitas.</p>
-          <small>Transaksi yang kamu catat akan muncul di sini.</small>
-        </div>`;
+  renderTable("assetTable",db.assets,commonColumns("assets"));
+  renderTable("vehicleTable",db.vehicles,commonColumns("vehicles"));
+  renderTable("facilityTable",db.facilities,commonColumns("facilities"));
+  renderTable("requestTable",db.requests,commonColumns("requests"));
+  renderTable("accommodationTable",db.accommodation,commonColumns("accommodation"));
+  renderTable("canteenTable",db.canteen,commonColumns("canteen"));
+  renderTable("vendorTable",db.vendors,commonColumns("vendors"));
+  setText("totalItems",db.inventory.length);
+  setText("totalAssets",db.assets.length);
+  setText("lowStock",db.inventory.filter(item=>Number(item.stock)<=Number(item.minimum)).length);
+  setText("pendingRequests",db.requests.filter(item=>["Pending","Diproses"].includes(item.status)).length);
+  setText("reportItems",db.inventory.length);
+  setText("reportStock",db.inventory.reduce((sum,item)=>sum+(Number(item.stock)||0),0));
+  setText("reportAssets",db.assets.length);
+  setText("reportTransactions",db.transactions.length);
+  const activity=document.getElementById("recentActivity");
+  if(activity){
+    activity.innerHTML=db.activity.length?db.activity.slice(0,8).map(item=>`<div class="activity-row"><span class="activity-dot"></span><div><p>${esc(item.message)}</p><small>${esc(item.date)}</small></div></div>`).join(""):`<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>Belum ada aktivitas.</p><small>Transaksi yang kamu catat akan muncul di sini.</small></div>`;
+  }
+  const search=document.getElementById("assetSearch");
+  if(search&&search.value){
+    const filtered=db.assets.filter(item=>(item.code+" "+item.name+" "+item.location).toLowerCase().includes(search.value.toLowerCase()));
+    renderTable("assetTable",filtered,commonColumns("assets"));
   }
 }
-
-const dateEl = document.getElementById("todayDate");
-if (dateEl) {
-  dateEl.textContent = new Date().toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
-}
-
+const dateEl=document.getElementById("todayDate");
+if(dateEl)dateEl.textContent=new Date().toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"});
 renderAll();
