@@ -50,7 +50,7 @@
     </div>
     <p class="nav-label">MAIN MENU</p>
     <nav>
-      <button class="nav-link active" onclick="showPage('dashboard',this)"><i class="fa-solid fa-grid-2"></i> Dashboard</button>
+      <button class="nav-link active" data-ga-admin-allowed onclick="showPage('dashboard',this)"><i class="fa-solid fa-grid-2"></i> Dashboard</button>
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('inventory',this)"><i class="fa-solid fa-boxes-stacked"></i> Inventory & Stok</button>
       <button class="nav-link" onclick="showPage('assets',this)"><i class="fa-solid fa-laptop"></i> Aset Perusahaan</button>
       <button class="nav-link" onclick="showPage('vehicles',this)"><i class="fa-solid fa-car"></i> Kendaraan</button>
@@ -87,6 +87,15 @@
           <article class="panel"><div class="panel-heading"><div><h3>Aktivitas Terbaru</h3><p>Riwayat aktivitas sistem</p></div><i class="fa-solid fa-clock-rotate-left"></i></div><div id="recentActivity" class="empty-state"><i class="fa-solid fa-inbox"></i><p>Belum ada aktivitas.</p><small>Transaksi yang kamu catat akan muncul di sini.</small></div></article>
           <article class="panel quick-panel"><div class="panel-heading"><div><h3>Akses Cepat</h3><p>Mulai pekerjaan GA</p></div><i class="fa-solid fa-bolt"></i></div><button class="quick-link" onclick="showPage('inventory')"><span class="quick-icon"><i class="fa-solid fa-arrow-right-arrow-left"></i></span><span><strong>Transaksi Stok</strong><small>Catat barang masuk atau keluar</small></span><i class="fa-solid fa-chevron-right"></i></button><button class="quick-link" onclick="showPage('assets')"><span class="quick-icon"><i class="fa-solid fa-laptop"></i></span><span><strong>Tambah Aset</strong><small>Daftarkan aset perusahaan</small></span><i class="fa-solid fa-chevron-right"></i></button><button class="quick-link" onclick="showPage('requests')"><span class="quick-icon"><i class="fa-solid fa-clipboard-check"></i></span><span><strong>Permintaan</strong><small>Periksa permintaan karyawan</small></span><i class="fa-solid fa-chevron-right"></i></button></article>
         </div>
+        <article class="panel" id="handoverSettingsPanel" hidden>
+          <div class="panel-heading"><div><h3>Jadwal Penyerahan Barang</h3><p>Karyawan memilih salah satu jam di bawah saat mengajukan permintaan barang (maksimal 3 pilihan).</p></div><i class="fa-regular fa-clock"></i></div>
+          <div class="slot-settings">
+            <div class="slot-row"><span>Pilihan 1</span><input type="time" data-slot-start="0" aria-label="Pilihan 1 mulai"><span>s/d</span><input type="time" data-slot-end="0" aria-label="Pilihan 1 selesai"></div>
+            <div class="slot-row"><span>Pilihan 2</span><input type="time" data-slot-start="1" aria-label="Pilihan 2 mulai"><span>s/d</span><input type="time" data-slot-end="1" aria-label="Pilihan 2 selesai"></div>
+            <div class="slot-row"><span>Pilihan 3</span><input type="time" data-slot-start="2" aria-label="Pilihan 3 mulai"><span>s/d</span><input type="time" data-slot-end="2" aria-label="Pilihan 3 selesai"></div>
+          </div>
+          <button type="button" class="primary-button" id="saveSlotsButton"><i class="fa-solid fa-check"></i> Simpan Jadwal</button>
+        </article>
         <article class="panel"><div class="panel-heading"><div><h3>Ringkasan Stok</h3><p>Barang yang membutuhkan perhatian</p></div><button class="text-button" onclick="showPage('inventory')">Lihat semua <i class="fa-solid fa-arrow-right"></i></button></div><div class="table-wrap"><table><thead><tr><th>Nama Barang</th><th>Kategori</th><th>Stok</th><th>Minimum</th><th>Status</th></tr></thead><tbody id="dashboardStock"><tr><td colspan="5" class="empty-cell">Belum ada data barang.</td></tr></tbody></table></div></article>
       </section>
       <section class="page" id="page-inventory">
@@ -141,8 +150,14 @@
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Fasilitas</th><th>Lokasi</th><th>Kerusakan</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="facilityTable"></tbody></table></div></article>
       </section>
       <section class="page" id="page-requests">
-        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Ajukan kebutuhan barang dan pantau statusnya.</p></div><button class="primary-button" id="newRequestButton" type="button" hidden><i class="fa-solid fa-plus"></i> Buat Permintaan</button></div>
-        <article class="panel"><div class="toolbar"><select id="requestFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Diserahkan</option><option>Ditolak</option><option>Dibatalkan</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pemohon</th><th>Barang</th><th>Jumlah</th><th>Lokasi</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="firebaseRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
+        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.</p></div></div>
+        <div class="request-tabs"><button type="button" class="primary-button" id="tabCatalog"><i class="fa-solid fa-store"></i> Katalog Barang</button><button type="button" class="secondary-button" id="tabRequests"><i class="fa-solid fa-clipboard-list"></i> Status Permintaan</button></div>
+        <div id="catalogView">
+          <article class="panel"><div class="toolbar"><input id="catalogSearch" type="search" placeholder="Cari nama, kode, atau kategori barang..." aria-label="Cari barang" autocomplete="off"><span id="catalogCount" class="catalog-count"></span></div><div id="catalogGrid" class="catalog-grid"><p class="catalog-empty">Memuat katalog...</p></div></article>
+        </div>
+        <div id="requestsView" hidden>
+          <article class="panel"><div class="toolbar"><select id="requestFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Diserahkan</option><option>Ditolak</option><option>Dibatalkan</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pemohon</th><th>Barang</th><th>Jumlah</th><th>Jadwal Penyerahan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="firebaseRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
+        </div>
       </section>
       <section class="page" id="page-accommodation">
         <div class="page-heading"><div><span class="eyebrow">ACCOMMODATION</span><h1>Mess & Akomodasi</h1><p>Kelola lokasi mess, kamar, dan status hunian.</p></div><button class="primary-button" onclick="openForm('accommodation')"><i class="fa-solid fa-plus"></i> Tambah Data</button></div>

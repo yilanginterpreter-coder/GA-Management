@@ -145,3 +145,30 @@ footer span{padding:0 5px;color:var(--sage)}
 .inventory-photo-overlay { position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.86); display:flex; align-items:center; justify-content:center; padding:35px; }
 .inventory-photo-overlay img { max-width:95vw; max-height:88vh; object-fit:contain; }
 .inventory-photo-close { position:absolute; right:20px; top:12px; color:white; background:transparent; border:0; font-size:40px; cursor:pointer; }
+
+/* Katalog permintaan barang */
+.request-tabs{display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap}
+.catalog-count{font-size:11px;color:var(--muted);white-space:nowrap}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:14px}
+.catalog-empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:26px 10px;font-size:12px}
+.catalog-card{display:flex;flex-direction:column;gap:5px;text-align:left;background:#fff;border:1px solid var(--border);border-radius:13px;padding:10px;transition:.2s;min-width:0}
+.catalog-card:hover:not(:disabled){border-color:var(--sage);box-shadow:var(--shadow);transform:translateY(-2px)}
+.catalog-card:disabled{opacity:.55;cursor:not-allowed}
+.catalog-photo{aspect-ratio:1/1;border-radius:9px;background:var(--sage-light);display:grid;place-items:center;overflow:hidden;color:#9DB7A8;font-size:34px}
+.catalog-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.catalog-name{font-size:12px;font-weight:700;line-height:1.4;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.catalog-meta{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.catalog-stock{font-size:10px;font-weight:700;color:#43754E}
+.catalog-stock.low{color:#A66D24}
+.catalog-stock.out{color:#B24E46}
+.order-summary{display:flex;gap:14px;align-items:center}
+.order-summary .catalog-photo{width:96px;height:96px;flex-shrink:0;aspect-ratio:auto}
+.slot-options{display:grid;gap:8px}
+.slot-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #DDE2DB;border-radius:8px;font-size:12px;cursor:pointer}
+.slot-option input{width:auto;margin:0;padding:0}
+.slot-option:has(input:checked){border-color:var(--sage);background:var(--sage-light)}
+.slot-settings{margin-bottom:14px}
+.slot-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.slot-row>span:first-child{width:70px;font-size:11px;font-weight:700;color:#59645C}
+.slot-row input{width:130px}
+@media(max-width:520px){.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}

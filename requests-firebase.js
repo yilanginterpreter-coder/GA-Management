@@ -22,12 +22,17 @@ const $ = id => document.getElementById(id);
 const MANAGER_ROLES = ["main_admin", "ga_admin"];
 const STAFF_ROLES = ["main_admin", "ga_admin", "admin_operational"];
 const VALID_ROLES = [...STAFF_ROLES, "employee"];
+const SLOT_PATTERN = /^\d{2}:\d{2} - \d{2}:\d{2}$/;
+const MAX_SLOTS = 3;
 
 let user = null;
 let profile = null;
 let requests = [];
 let items = [];
+let itemsLoadedAt = 0;
+let slots = [];
 let statusFilter = "";
+let catalogTerm = "";
 let busy = false;
 let generation = 0;
 
@@ -50,7 +55,7 @@ function message(text) {
 
 function errorText(error) {
   if (error?.code === "permission-denied") {
-    return "Rules menolak tindakan ini. Periksa role akun atau status permintaan.";
+    return "Rules menolak tindakan ini. Periksa role akun, jadwal penyerahan, atau status permintaan.";
   }
   return error?.message || "Terjadi kesalahan.";
 }
@@ -89,6 +94,24 @@ function formatDate(timestamp) {
     : "-";
 }
 
+function formatDay(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      });
+}
+
+function scheduleText(r) {
+  if (r.handoverDate && r.handoverSlot) {
+    return `${formatDay(r.handoverDate)} · ${r.handoverSlot}`;
+  }
+  return r.deliveryLocation || "-";
+}
+
 function badge(status) {
   const cls = {
     Menunggu: "warning",
@@ -99,6 +122,10 @@ function badge(status) {
   }[status] ?? "neutral";
   return `<span class="status-badge ${cls}">${esc(status || "-")}</span>`;
 }
+
+const safePhoto = item =>
+  typeof item?.photoData === "string" &&
+  item.photoData.startsWith("data:image/jpeg;base64,");
 
 /* ---------- Modal ---------- */
 
@@ -159,7 +186,7 @@ function openModal(title, bodyHTML, submitLabel, onSubmit) {
       const result = await onSubmit(data);
       closeModal();
       message(result || "Berhasil disimpan.");
-      await load();
+      await Promise.all([load(), loadItems(true)]);
     } catch (error) {
       console.error("Permintaan gagal:", error);
       message(errorText(error));
@@ -173,7 +200,194 @@ function openModal(title, bodyHTML, submitLabel, onSubmit) {
   modal.querySelector("input, select, textarea, .primary-button")?.focus();
 }
 
-/* ---------- Tampilan tabel ---------- */
+/* ---------- Tab ---------- */
+
+function setTab(name) {
+  const catalog = name === "catalog";
+
+  const catalogView = $("catalogView");
+  const requestsView = $("requestsView");
+  if (catalogView) catalogView.hidden = !catalog;
+  if (requestsView) requestsView.hidden = catalog;
+
+  const tabCatalog = $("tabCatalog");
+  const tabRequests = $("tabRequests");
+  if (tabCatalog) {
+    tabCatalog.className = catalog ? "primary-button" : "secondary-button";
+  }
+  if (tabRequests) {
+    tabRequests.className = catalog ? "secondary-button" : "primary-button";
+  }
+
+  // Muat ulang stok bila katalog dibuka lagi setelah beberapa saat.
+  if (catalog && user && Date.now() - itemsLoadedAt > 30000) {
+    loadItems(true);
+  }
+}
+
+/* ---------- Katalog ---------- */
+
+function cardHTML(item) {
+  const stock = Number(item.stock) || 0;
+  const minimum = Number(item.minimum) || 0;
+  const out = stock <= 0;
+  const stockClass = out ? "out" : stock <= minimum ? "low" : "";
+  const stockText = out
+    ? "Stok habis"
+    : `Stok: ${stock} ${item.unit || ""}${stock <= minimum ? " (menipis)" : ""}`;
+
+  const photo = safePhoto(item)
+    ? `<img src="${esc(item.photoData)}" alt="Foto ${esc(item.name)}" loading="lazy">`
+    : `<i class="fa-solid fa-box"></i>`;
+
+  return `
+    <button type="button" class="catalog-card" data-item-id="${esc(item.id)}" ${out ? "disabled" : ""}>
+      <span class="catalog-photo">${photo}</span>
+      <span class="catalog-name">${esc(item.name)}</span>
+      <span class="catalog-meta">${esc(item.code)} · ${esc(item.category)}</span>
+      <span class="catalog-stock ${stockClass}">${esc(stockText)}</span>
+    </button>`;
+}
+
+function renderCatalog() {
+  const grid = $("catalogGrid");
+  if (!grid) return;
+
+  const term = catalogTerm.trim().toLocaleLowerCase("id-ID");
+
+  const list = items.filter(item =>
+    [item.code, item.name, item.category]
+      .join(" ")
+      .toLocaleLowerCase("id-ID")
+      .includes(term)
+  );
+
+  grid.innerHTML = list.length
+    ? list.map(cardHTML).join("")
+    : `<p class="catalog-empty">${
+        profile
+          ? (items.length ? "Barang tidak ditemukan." : "Belum ada barang.")
+          : "Silakan login."
+      }</p>`;
+
+  const count = $("catalogCount");
+  if (count) {
+    count.textContent = profile ? `${list.length} barang` : "";
+  }
+}
+
+async function loadItems(force = false) {
+  if (!user || !profile) return;
+  if (!force && items.length) return;
+
+  const current = generation;
+
+  try {
+    const snapshot = await getDocs(collection(db, "inventory"));
+    if (current !== generation) return;
+
+    items = snapshot.docs
+      .map(d => ({ ...d.data(), id: d.id }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name), "id"));
+
+    itemsLoadedAt = Date.now();
+    renderCatalog();
+  } catch (error) {
+    if (current !== generation) return;
+    console.error("Gagal memuat katalog:", error);
+    message("Katalog barang tidak dapat dimuat.");
+  }
+}
+
+/* ---------- Jadwal penyerahan ---------- */
+
+async function loadSlots() {
+  try {
+    const snapshot = await getDoc(doc(db, "settings", "handoverSlots"));
+
+    slots = snapshot.exists() && Array.isArray(snapshot.data().slots)
+      ? snapshot.data().slots.filter(
+          s => typeof s === "string" && SLOT_PATTERN.test(s)
+        )
+      : [];
+  } catch (error) {
+    console.error("Gagal memuat jadwal penyerahan:", error);
+    slots = [];
+  }
+
+  fillSlotInputs();
+}
+
+function slotInput(kind, index) {
+  return document.querySelector(`[data-slot-${kind}="${index}"]`);
+}
+
+function fillSlotInputs() {
+  const panel = $("handoverSettingsPanel");
+  if (panel) panel.hidden = !canManage();
+
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const [start = "", end = ""] = (slots[i] || "").split(" - ");
+    const startInput = slotInput("start", i);
+    const endInput = slotInput("end", i);
+    if (startInput) startInput.value = start;
+    if (endInput) endInput.value = end;
+  }
+}
+
+async function saveSlots() {
+  if (!canManage() || busy) return;
+
+  const result = [];
+
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const start = slotInput("start", i)?.value || "";
+    const end = slotInput("end", i)?.value || "";
+
+    if (!start && !end) continue;
+
+    if (!start || !end) {
+      return message(`Pilihan ${i + 1}: isi jam mulai dan jam selesai.`);
+    }
+    if (end <= start) {
+      return message(`Pilihan ${i + 1}: jam selesai harus setelah jam mulai.`);
+    }
+
+    const label = `${start} - ${end}`;
+    if (result.includes(label)) {
+      return message(`Pilihan ${i + 1} sama dengan pilihan lain.`);
+    }
+    result.push(label);
+  }
+
+  if (!result.length) {
+    return message("Isi minimal satu pilihan jam penyerahan.");
+  }
+
+  busy = true;
+  const button = $("saveSlotsButton");
+  if (button) button.disabled = true;
+
+  try {
+    await setDoc(doc(db, "settings", "handoverSlots"), {
+      slots: result,
+      updatedBy: user.uid,
+      updatedByName: profile.name,
+      updatedAt: serverTimestamp()
+    });
+
+    slots = result;
+    message("Jadwal penyerahan barang disimpan.");
+  } catch (error) {
+    console.error("Gagal menyimpan jadwal:", error);
+    message(errorText(error));
+  } finally {
+    busy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+/* ---------- Tabel permintaan ---------- */
 
 function rowHTML(r) {
   const actions = [
@@ -206,7 +420,7 @@ function rowHTML(r) {
       <td>${esc(r.requesterName)}${r.department ? ` <small>(${esc(r.department)})</small>` : ""}</td>
       <td>${esc(r.itemCode)} — ${esc(r.itemName)}</td>
       <td>${esc(r.quantity)} ${esc(r.unit)}</td>
-      <td>${esc(r.deliveryLocation)}</td>
+      <td>${esc(scheduleText(r))}</td>
       <td>${badge(r.status)}</td>
       <td><div class="row-actions">${actions.join("")}</div></td>
     </tr>`;
@@ -223,29 +437,27 @@ function updatePending() {
 }
 
 function render() {
-  const body = $("firebaseRequestTable");
-  if (!body) return;
-
-  const newButton = $("newRequestButton");
-  if (newButton) newButton.hidden = !profile;
-
   const subtitle = $("requestSubtitle");
   if (subtitle) {
     subtitle.textContent = isStaff()
-      ? "Verifikasi, setujui, dan serahkan permintaan barang dari karyawan."
-      : "Ajukan kebutuhan barang dan pantau statusnya.";
+      ? "Cari barang di katalog, lalu verifikasi, setujui, dan serahkan permintaan karyawan."
+      : "Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.";
   }
 
-  const rows = requests.filter(
-    r => !statusFilter || r.status === statusFilter
-  );
+  const body = $("firebaseRequestTable");
+  if (body) {
+    const rows = requests.filter(
+      r => !statusFilter || r.status === statusFilter
+    );
 
-  body.innerHTML = rows.length
-    ? rows.map(rowHTML).join("")
-    : `<tr><td colspan="8" class="empty-cell">${
-        profile ? "Belum ada permintaan." : "Silakan login."
-      }</td></tr>`;
+    body.innerHTML = rows.length
+      ? rows.map(rowHTML).join("")
+      : `<tr><td colspan="8" class="empty-cell">${
+          profile ? "Belum ada permintaan." : "Silakan login."
+        }</td></tr>`;
+  }
 
+  renderCatalog();
   updatePending();
 }
 
@@ -282,23 +494,30 @@ async function load() {
 
 /* ---------- Tindakan ---------- */
 
-async function createRequest(data) {
-  const item = items.find(i => i.id === data.itemId);
-  if (!item) throw new Error("Pilih barang yang valid.");
-
+async function createRequest(item, data) {
+  const stock = Number(item.stock) || 0;
   const quantity = Number(data.quantity);
-  if (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity > 1000000) {
+
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
     throw new Error("Jumlah harus bilangan bulat lebih dari nol.");
+  }
+  if (quantity > stock) {
+    throw new Error(`Jumlah melebihi stok tersedia (${stock} ${item.unit}).`);
   }
 
   const reason = String(data.reason || "").trim();
-  const location = String(data.deliveryLocation || "").trim();
-
   if (!reason || reason.length > 500) {
     throw new Error("Alasan wajib diisi, maksimal 500 karakter.");
   }
-  if (!location || location.length > 150) {
-    throw new Error("Lokasi penyerahan wajib diisi, maksimal 150 karakter.");
+
+  const handoverDate = String(data.handoverDate || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(handoverDate) || handoverDate < localDate()) {
+    throw new Error("Tanggal penyerahan tidak boleh sebelum hari ini.");
+  }
+
+  const handoverSlot = String(data.handoverSlot || "");
+  if (!slots.includes(handoverSlot)) {
+    throw new Error("Pilih salah satu jam penyerahan yang tersedia.");
   }
 
   const ticket = newTicket();
@@ -315,12 +534,14 @@ async function createRequest(data) {
     unit: item.unit,
     quantity,
     reason,
-    deliveryLocation: location,
+    handoverDate,
+    handoverSlot,
     status: "Menunggu",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
 
+  setTab("requests");
   return `Permintaan ${ticket} berhasil diajukan.`;
 }
 
@@ -432,35 +653,53 @@ async function handoverRequest(id) {
 
 /* ---------- Form ---------- */
 
-async function openNewRequest() {
+async function openOrder(itemId) {
   if (!user || !profile) return message("Silakan login kembali.");
 
-  try {
-    const snapshot = await getDocs(collection(db, "inventory"));
-    items = snapshot.docs
-      .map(d => ({ ...d.data(), id: d.id }))
-      .sort((a, b) => String(a.code).localeCompare(String(b.code)));
-  } catch (error) {
-    console.error("Gagal memuat barang:", error);
-    return message("Daftar barang tidak dapat dimuat.");
+  const item = items.find(i => i.id === itemId);
+  if (!item) return message("Barang tidak ditemukan.");
+
+  const stock = Number(item.stock) || 0;
+  if (stock <= 0) return message("Stok barang ini habis.");
+
+  // Ambil jadwal terbaru yang diatur admin GA.
+  await loadSlots();
+
+  if (!slots.length) {
+    return message(
+      "Admin GA belum mengatur jam penyerahan barang. Silakan hubungi admin GA."
+    );
   }
 
-  if (!items.length) return message("Belum ada barang yang dapat diminta.");
+  const today = localDate();
 
-  const options = items.map(i => `
-    <option value="${esc(i.id)}" ${Number(i.stock) > 0 ? "" : "disabled"}>
-      ${esc(i.code)} — ${esc(i.name)}
-      (${Number(i.stock) > 0 ? `stok: ${esc(i.stock)} ${esc(i.unit)}` : "stok habis"})
-    </option>`).join("");
+  const photo = safePhoto(item)
+    ? `<span class="catalog-photo"><img src="${esc(item.photoData)}" alt="Foto ${esc(item.name)}"></span>`
+    : `<span class="catalog-photo"><i class="fa-solid fa-box"></i></span>`;
+
+  const slotOptions = slots.map(slot => `
+    <label class="slot-option">
+      <input type="radio" name="handoverSlot" value="${esc(slot)}" required>
+      ${esc(slot)}
+    </label>`).join("");
 
   openModal(
-    "Buat Permintaan Barang",
-    field("Barang *", `<select name="itemId" required><option value="">Pilih barang</option>${options}</select>`) +
-    field("Jumlah *", `<input name="quantity" type="number" min="1" step="1" required>`, false) +
-    field("Lokasi Penyerahan *", `<input name="deliveryLocation" maxlength="150" required placeholder="Contoh: Kantor Lt. 2">`, false) +
+    "Ajukan Permintaan",
+    field("Barang", `
+      <div class="order-summary">
+        ${photo}
+        <div>
+          <strong>${esc(item.name)}</strong><br>
+          <small>${esc(item.code)} · ${esc(item.category)}</small><br>
+          <small>Stok tersedia: ${stock} ${esc(item.unit)}</small>
+        </div>
+      </div>`) +
+    field("Jumlah *", `<input name="quantity" type="number" min="1" max="${stock}" step="1" required>`, false) +
+    field("Tanggal Penyerahan *", `<input name="handoverDate" type="date" min="${today}" value="${today}" required>`, false) +
+    field("Jam Penyerahan *", `<div class="slot-options">${slotOptions}</div>`) +
     field("Alasan Kebutuhan *", `<textarea name="reason" maxlength="500" required placeholder="Jelaskan untuk apa barang dibutuhkan"></textarea>`),
     "Ajukan",
-    createRequest
+    data => createRequest(item, data)
   );
 }
 
@@ -468,7 +707,9 @@ function openAction(action, id) {
   const r = requests.find(x => x.id === id);
   if (!r) return message("Permintaan tidak ditemukan.");
 
-  const summary = `${esc(r.ticketNo)} — ${esc(r.itemName)} (${esc(r.quantity)} ${esc(r.unit)})`;
+  const summary =
+    `${esc(r.ticketNo)} — ${esc(r.itemName)} (${esc(r.quantity)} ${esc(r.unit)})` +
+    `<br><small>Penyerahan: ${esc(scheduleText(r))}</small>`;
 
   if (action === "detail") {
     const lines = [
@@ -476,7 +717,7 @@ function openAction(action, id) {
       ["Pemohon", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
       ["Barang", `${r.itemCode} — ${r.itemName}`],
       ["Jumlah", `${r.quantity} ${r.unit}`],
-      ["Lokasi penyerahan", r.deliveryLocation],
+      ["Jadwal penyerahan", scheduleText(r)],
       ["Alasan kebutuhan", r.reason],
       ["Status", r.status],
       ["Catatan / alasan", r.statusNote || "-"],
@@ -528,7 +769,18 @@ function openAction(action, id) {
 
 /* ---------- Pasang ke halaman ---------- */
 
-$("newRequestButton")?.addEventListener("click", openNewRequest);
+$("tabCatalog")?.addEventListener("click", () => setTab("catalog"));
+$("tabRequests")?.addEventListener("click", () => setTab("requests"));
+
+$("catalogSearch")?.addEventListener("input", event => {
+  catalogTerm = event.target.value;
+  renderCatalog();
+});
+
+$("catalogGrid")?.addEventListener("click", event => {
+  const card = event.target.closest(".catalog-card");
+  if (card && !card.disabled) openOrder(card.dataset.itemId);
+});
 
 $("requestFilter")?.addEventListener("change", event => {
   statusFilter = event.target.value;
@@ -539,6 +791,8 @@ $("firebaseRequestTable")?.addEventListener("click", event => {
   const button = event.target.closest("[data-action]");
   if (button) openAction(button.dataset.action, button.dataset.id);
 });
+
+$("saveSlotsButton")?.addEventListener("click", saveSlots);
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") closeModal();
@@ -565,7 +819,11 @@ onAuthStateChanged(auth, async current => {
   profile = null;
   requests = [];
   items = [];
+  itemsLoadedAt = 0;
+  slots = [];
+  catalogTerm = "";
   closeModal();
+  fillSlotInputs();
   render();
 
   if (!current) return;
@@ -582,7 +840,19 @@ onAuthStateChanged(auth, async current => {
 
     user = current;
     profile = data;
-    await load();
+
+    setTab(isStaff() ? "requests" : "catalog");
+
+    await Promise.all([
+      load(),
+      loadItems(true),
+      canManage() ? loadSlots() : Promise.resolve()
+    ]);
+
+    if (thisGeneration === generation) {
+      fillSlotInputs();
+      render();
+    }
   } catch (error) {
     if (thisGeneration !== generation) return;
     console.error("Gagal memuat modul permintaan:", error);
