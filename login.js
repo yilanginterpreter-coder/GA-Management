@@ -160,18 +160,55 @@ function showLogin(message = "") {
   showMessage(message);
 }
 
-function showApp(role) {
+const ROLE_LABELS = {
+  main_admin: "Main Admin",
+  ga_admin: "GA Admin",
+  admin_operational: "Admin Operational",
+  employee: "Karyawan"
+};
+
+function showProfile(name, role) {
+  const displayName = name || ROLE_LABELS[role] || "Pengguna";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
+
+  const nameEl = document.querySelector(".profile strong");
+  const roleEl = document.querySelector(".profile small");
+  if (nameEl) nameEl.textContent = displayName;
+  if (roleEl) roleEl.textContent = ROLE_LABELS[role] || "";
+
+  document.querySelectorAll(".avatar, .top-avatar").forEach((el) => {
+    el.textContent = initials || "GA";
+  });
+}
+
+function showApp(role, name) {
   if (loginScreen) loginScreen.hidden = true;
   if (appContent) appContent.hidden = false;
 
   document.body.dataset.userRole = role;
-document.querySelectorAll(".nav-link").forEach((menu) => {
-  if (role === "main_admin") {
-    menu.hidden = false;
-  } else {
-    menu.hidden = !menu.hasAttribute("data-ga-admin-allowed");
+  showProfile(name, role);
+
+  const allowedAttribute =
+    role === "employee" ? "data-employee-allowed" : "data-ga-admin-allowed";
+
+  document.querySelectorAll(".nav-link").forEach((menu) => {
+    if (role === "main_admin") {
+      menu.hidden = false;
+    } else {
+      menu.hidden = !menu.hasAttribute(allowedAttribute);
+    }
+  });
+
+  // Karyawan langsung masuk ke halaman Permintaan Barang.
+  if (role === "employee" && typeof window.showPage === "function") {
+    const home = document.querySelector(".nav-link[data-employee-allowed]");
+    window.showPage("requests", home);
   }
-});
   document.querySelectorAll("[data-main-admin-only]").forEach((menu) => {
     menu.hidden = role !== "main_admin";
   });
@@ -182,7 +219,8 @@ function validRole(role) {
   return [
     "main_admin",
     "ga_admin",
-    "admin_operational"
+    "admin_operational",
+    "employee"
   ].includes(role);
 }
 
@@ -200,7 +238,7 @@ async function checkUserRole(user) {
     throw new Error("ROLE_INVALID");
   }
 
-  return userData.role;
+  return userData;
 }
 
 if (loginForm) {
@@ -274,8 +312,8 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
 
-    const role = await checkUserRole(user);
-    showApp(role);
+    const userData = await checkUserRole(user);
+    showApp(userData.role, userData.name);
 // Data Inventory & Transaksi dimuat oleh stock-firebase.js.
 
   } catch (error) {

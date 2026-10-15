@@ -1124,6 +1124,11 @@ onAuthStateChanged(auth, async user => {
 
     activeRole = profile.data().role;
 
+    // Karyawan tidak membaca transaksi stok; modul ini hanya untuk staf GA.
+    if (!["main_admin", "ga_admin", "admin_operational"].includes(activeRole)) {
+      return;
+    }
+
     await refresh();
 
   } catch (error) {

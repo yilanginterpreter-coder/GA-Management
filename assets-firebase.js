@@ -424,6 +424,12 @@ onAuthStateChanged(auth, async user => {
     currentProfile = profile.data();
 
     setupAssets();
+
+    // Karyawan tidak membaca data aset.
+    if (!["main_admin", "ga_admin", "admin_operational"].includes(currentProfile.role)) {
+      return;
+    }
+
     await loadAssets();
 
   } catch (error) {

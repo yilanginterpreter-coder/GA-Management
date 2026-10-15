@@ -55,7 +55,7 @@
       <button class="nav-link" onclick="showPage('assets',this)"><i class="fa-solid fa-laptop"></i> Aset Perusahaan</button>
       <button class="nav-link" onclick="showPage('vehicles',this)"><i class="fa-solid fa-car"></i> Kendaraan</button>
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('facilities',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
-      <button class="nav-link" onclick="showPage('requests',this)"><i class="fa-solid fa-clipboard-list"></i> Permintaan Karyawan</button>
+      <button class="nav-link" data-ga-admin-allowed data-employee-allowed onclick="showPage('requests',this)"><i class="fa-solid fa-clipboard-list"></i> Permintaan Karyawan</button>
       <button class="nav-link" onclick="showPage('accommodation',this)"><i class="fa-solid fa-house"></i> Mess & Akomodasi</button>
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('canteen',this)"><i class="fa-solid fa-utensils"></i> Kantin</button>
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('vendors',this)"><i class="fa-solid fa-truck-field"></i> Vendor</button>
@@ -141,8 +141,8 @@
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Fasilitas</th><th>Lokasi</th><th>Kerusakan</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="facilityTable"></tbody></table></div></article>
       </section>
       <section class="page" id="page-requests">
-        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Karyawan</h1><p>Pantau dan tindak lanjuti permintaan dari karyawan.</p></div><button class="primary-button" onclick="openForm('requests')"><i class="fa-solid fa-plus"></i> Tambah Permintaan</button></div>
-        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Nama Karyawan</th><th>Jenis Permintaan</th><th>Detail</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="requestTable"></tbody></table></div></article>
+        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Ajukan kebutuhan barang dan pantau statusnya.</p></div><button class="primary-button" id="newRequestButton" type="button" hidden><i class="fa-solid fa-plus"></i> Buat Permintaan</button></div>
+        <article class="panel"><div class="toolbar"><select id="requestFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Diserahkan</option><option>Ditolak</option><option>Dibatalkan</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pemohon</th><th>Barang</th><th>Jumlah</th><th>Lokasi</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="firebaseRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
       </section>
       <section class="page" id="page-accommodation">
         <div class="page-heading"><div><span class="eyebrow">ACCOMMODATION</span><h1>Mess & Akomodasi</h1><p>Kelola lokasi mess, kamar, dan status hunian.</p></div><button class="primary-button" onclick="openForm('accommodation')"><i class="fa-solid fa-plus"></i> Tambah Data</button></div>
@@ -181,6 +181,7 @@
 <script type="module" src="login.js"></script>
 <script type="module" src="stock-firebase.js"></script>
 <script type="module" src="assets-firebase.js"></script>
+<script type="module" src="requests-firebase.js"></script>
 </body>
 </html>
 
