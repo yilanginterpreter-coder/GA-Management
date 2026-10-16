@@ -249,10 +249,10 @@ const filteredInventory = inventory.filter(item => {
           <tr>
             <td>${i.photoData ? `<button type="button" class="inventory-photo-open" data-item-id="${html(i.id)}" aria-label="Lihat foto ${html(i.name)}"><img class="inventory-photo-thumb" src="${html(i.photoData)}" alt="Foto ${html(i.name)}"></button>` : "—"}</td>
             ${[
-              "code", "name", "category", "stock",
+              "code", "name", "specification", "category", "stock",
               "minimum", "unit", "location"
             ].map(k =>
-              `<td>${html(i[k] ?? "-")}</td>`
+              `<td>${html(k === "specification" ? (i[k] || "-") : (i[k] ?? "-"))}</td>`
             ).join("")}
             <td>
               ${canWrite()
@@ -266,7 +266,7 @@ const filteredInventory = inventory.filter(item => {
           </tr>
         `).join("")
       : `<tr>
-          <td colspan="9" class="empty-cell">
+          <td colspan="10" class="empty-cell">
            Tidak ada barang yang cocok dengan pencarian.
           </td>
         </tr>`;
@@ -527,6 +527,13 @@ function openEditInventoryForm(itemId) {
           value="${html(item.location)}">
       </div>
 
+      <div class="field full">
+        <label>Spesifikasi</label>
+        <input name="specification" maxlength="200"
+          placeholder="Contoh: Putih, 5 liter  /  Ukuran L, lengan panjang"
+          value="${html(item.specification || "")}">
+      </div>
+
       ${photoField(item.photoData || "")}
       <div class="field full">
         <p>Kode barang dan stok tidak dapat diedit langsung.</p>
@@ -545,6 +552,11 @@ async function saveEditInventory(itemId, data) {
   const name = String(data.name || "").trim();
   const category = String(data.category || "").trim();
   const unit = String(data.unit || "").trim();
+  const specification = String(data.specification || "").trim();
+
+  if (specification.length > 200) {
+    throw new Error("Spesifikasi maksimal 200 karakter.");
+  }
   const storageLocation = String(data.location || "").trim();
   const rawMinimum = String(data.minimum ?? "").trim();
   const minimum = Number(rawMinimum);
@@ -582,6 +594,7 @@ async function saveEditInventory(itemId, data) {
       unit,
       location: storageLocation,
       minimum,
+      specification,
       ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
     });
   });
@@ -661,6 +674,13 @@ function openInventoryForm() {
           maxlength="150"
           placeholder="Gudang GA"
         >
+      </div>
+
+      <div class="field full">
+        <label>Spesifikasi</label>
+        <input name="specification" maxlength="200"
+          placeholder="Contoh: Putih, 5 liter  /  Ukuran L, lengan panjang"
+          value="">
       </div>
 
       ${photoField()}
@@ -786,6 +806,11 @@ async function saveInventory(data) {
   const name = String(data.name || "").trim();
   const category = String(data.category || "").trim();
   const unit = String(data.unit || "").trim();
+  const specification = String(data.specification || "").trim();
+
+  if (specification.length > 200) {
+    throw new Error("Spesifikasi maksimal 200 karakter.");
+  }
   const storageLocation = String(data.location || "").trim();
 
   const rawMinimum = String(data.minimum ?? "").trim();
@@ -835,6 +860,7 @@ async function saveInventory(data) {
       unit,
       location: storageLocation,
       minimum,
+      specification,
       stock: 0,
       photoData: data.photoData || "",
       createdBy: user.uid,
@@ -1144,4 +1170,3 @@ onAuthStateChanged(auth, async user => {
     );
   }
 });
-
