@@ -244,6 +244,7 @@ function cardHTML(item) {
     <button type="button" class="catalog-card" data-item-id="${esc(item.id)}" ${out ? "disabled" : ""}>
       <span class="catalog-photo">${photo}</span>
       <span class="catalog-name">${esc(item.name)}</span>
+      ${item.specification ? `<span class="catalog-spec">${esc(item.specification)}</span>` : ""}
       <span class="catalog-meta">${esc(item.code)} · ${esc(item.category)}</span>
       <span class="catalog-stock ${stockClass}">${esc(stockText)}</span>
     </button>`;
@@ -256,7 +257,7 @@ function renderCatalog() {
   const term = catalogTerm.trim().toLocaleLowerCase("id-ID");
 
   const list = items.filter(item =>
-    [item.code, item.name, item.category]
+    [item.code, item.name, item.specification, item.category]
       .join(" ")
       .toLocaleLowerCase("id-ID")
       .includes(term)
@@ -691,6 +692,7 @@ async function openOrder(itemId) {
         <div>
           <strong>${esc(item.name)}</strong><br>
           <small>${esc(item.code)} · ${esc(item.category)}</small><br>
+          ${item.specification ? `<small>Spesifikasi: ${esc(item.specification)}</small><br>` : ""}
           <small>Stok tersedia: ${stock} ${esc(item.unit)}</small>
         </div>
       </div>`) +
@@ -716,6 +718,7 @@ function openAction(action, id) {
       ["Tiket", r.ticketNo],
       ["Pemohon", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
       ["Barang", `${r.itemCode} — ${r.itemName}`],
+      ["Spesifikasi", items.find(i => i.id === r.itemId)?.specification || "-"],
       ["Jumlah", `${r.quantity} ${r.unit}`],
       ["Jadwal penyerahan", scheduleText(r)],
       ["Alasan kebutuhan", r.reason],
