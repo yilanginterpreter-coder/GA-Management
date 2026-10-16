@@ -1088,6 +1088,10 @@ $("dataForm")?.addEventListener("submit", async event => {
   }
 }, true);
 
+// Dipakai modul import Excel untuk memuat ulang daftar barang.
+window.refreshFirestoreInventory = () =>
+  refresh().catch(error => console.error("Gagal memuat ulang stok:", error));
+
 // Pertahankan sinkronisasi dengan dashboard lama.
 const legacyRender = window.renderAll;
 
