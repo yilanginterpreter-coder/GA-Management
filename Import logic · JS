@@ -1,0 +1,280 @@
+// Logika murni untuk impor Inventory dari Excel (tanpa Firebase / DOM).
+
+export const LIMITS = {
+  name: 150,
+  category: 100,
+  unit: 40,
+  location: 150,
+  specification: 200
+};
+
+export const DEFAULTS = {
+  unit: "pcs",
+  category: "Umum",
+  location: "Gudang GA",
+  minimum: 10
+};
+
+// Urutan penting: kolom yang sudah dipakai field lebih awal tidak dipakai lagi.
+export const FIELDS = [
+  {
+    key: "code",
+    label: "Kode Barang",
+    required: true,
+    pattern: /(^|\b)(kode|code|sku|item\s*(no|code)|part\s*no)\b|编码|编号|代码|料号/i
+  },
+  {
+    key: "name",
+    label: "Nama Barang",
+    required: true,
+    pattern: /nama|name|description|deskripsi|barang|item|品名|名称|物料/i
+  },
+  {
+    key: "specification",
+    label: "Spesifikasi",
+    pattern: /spesifikasi|specification|spec|ukuran|size|warna|color|colour|规格/i
+  },
+  {
+    key: "unit",
+    label: "Satuan",
+    pattern: /satuan|unit|uom|单位/i
+  },
+  {
+    key: "category",
+    label: "Kategori",
+    pattern: /kategori|category|jenis|type|类别|分类/i
+  },
+  {
+    key: "location",
+    label: "Lokasi",
+    pattern: /lokasi|location|gudang|warehouse|仓库|位置/i
+  },
+  {
+    key: "minimum",
+    label: "Stok Minimum",
+    pattern: /minimum|\bmin\b|safety|最低|安全库存/i
+  },
+  {
+    key: "stock",
+    label: "Stok Awal",
+    pattern: /stok|stock|qty|quantity|saldo|balance|jumlah|库存|数量|结存/i
+  }
+];
+
+export function cellText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+export function columnLetter(index) {
+  let n = index + 1;
+  let result = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    result = String.fromCharCode(65 + rem) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
+
+export function columnCount(rows) {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0);
+}
+
+// Baris header = baris pertama yang berisi minimal 3 sel terisi.
+export function detectHeaderRow(rows) {
+  const index = rows.findIndex(
+    row => row.filter(cell => cellText(cell) !== "").length >= 3
+  );
+  return index < 0 ? 0 : index;
+}
+
+export function guessMapping(headerCells, rows = [], headerIndex = 0) {
+  const mapping = {};
+  const used = new Set();
+
+  for (const field of FIELDS) {
+    let found = -1;
+
+    for (let i = 0; i < headerCells.length; i++) {
+      if (used.has(i)) continue;
+      if (field.pattern.test(cellText(headerCells[i]))) {
+        found = i;
+        break;
+      }
+    }
+
+    mapping[field.key] = found;
+    if (found >= 0) used.add(found);
+  }
+
+  // Tidak ada header "kode"? Kolom yang isinya paling mirip kode barang.
+  if (mapping.code < 0) {
+    const sample = rows.slice(headerIndex + 1, headerIndex + 21);
+    for (let i = 0; i < headerCells.length; i++) {
+      if (used.has(i)) continue;
+      const hits = sample.filter(row =>
+        /^[A-Za-z0-9]+([-_/][A-Za-z0-9]+)+$/.test(cellText(row[i]))
+      ).length;
+      if (sample.length && hits / sample.length >= 0.6) {
+        mapping.code = i;
+        used.add(i);
+        break;
+      }
+    }
+  }
+
+  return mapping;
+}
+
+// Cocokkan aturan Firestore: ^[A-Z0-9_-]{2,60}$
+export function sanitizeCode(raw) {
+  const original = cellText(raw);
+  const code = original
+    .toUpperCase()
+    .replace(/[\s/.\\]+/g, "-")
+    .replace(/[^A-Z0-9_-]/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return { code, changed: code !== original };
+}
+
+// "1.250" / "1,250" / 12 / "12 pcs" -> angka bulat, atau NaN.
+export function parseCount(value) {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value >= 0 ? value : NaN;
+  }
+
+  const text = cellText(value);
+  if (!text) return NaN;
+
+  const cleaned = text.replace(/[,\s]/g, "").replace(/[^\d.]/g, "");
+  if (!/^\d+(\.0+)?$/.test(cleaned)) return NaN;
+
+  const number = Number(cleaned);
+  return Number.isSafeInteger(number) ? number : NaN;
+}
+
+function cut(text, max, notes, label) {
+  if (text.length <= max) return text;
+  notes.push(`${label} dipotong ${max} karakter`);
+  return text.slice(0, max);
+}
+
+/**
+ * rows        : array baris (array sel) dari sheet
+ * headerIndex : indeks baris header (0-based)
+ * mapping     : { code, name, ... } -> indeks kolom atau -1
+ * defaults    : nilai bawaan bila kolom tidak dipilih / sel kosong
+ * existing    : Set kode yang sudah ada di database
+ */
+export function buildRecords(rows, headerIndex, mapping, defaults, existing) {
+  const records = [];
+  const seen = new Set();
+
+  const get = (row, key) =>
+    mapping[key] >= 0 ? cellText(row[mapping[key]]) : "";
+
+  for (let r = headerIndex + 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+
+    const meaningful = Object.keys(mapping).some(
+      key => mapping[key] >= 0 && cellText(row[mapping[key]]) !== ""
+    );
+    if (!meaningful) continue;
+
+    const notes = [];
+    const errors = [];
+
+    const rawCode = get(row, "code");
+    const { code, changed } = sanitizeCode(rawCode);
+
+    if (!rawCode) errors.push("kode kosong");
+    else if (code.length < 2 || code.length > 60) {
+      errors.push("kode tidak valid (2–60 karakter)");
+    } else if (changed) {
+      notes.push(`kode disesuaikan dari "${rawCode}"`);
+    }
+
+    const name = cut(get(row, "name"), LIMITS.name, notes, "Nama");
+    if (!name) errors.push("nama kosong");
+
+    const specification = cut(
+      get(row, "specification"), LIMITS.specification, notes, "Spesifikasi"
+    );
+    const unit = cut(
+      get(row, "unit") || defaults.unit, LIMITS.unit, notes, "Satuan"
+    );
+    const category = cut(
+      get(row, "category") || defaults.category, LIMITS.category, notes, "Kategori"
+    );
+    const location = cut(
+      get(row, "location") || defaults.location, LIMITS.location, notes, "Lokasi"
+    );
+
+    let minimum = defaults.minimum;
+    if (mapping.minimum >= 0 && get(row, "minimum") !== "") {
+      const parsed = parseCount(row[mapping.minimum]);
+      if (Number.isNaN(parsed)) {
+        notes.push("minimum tidak valid, pakai nilai bawaan");
+      } else {
+        minimum = parsed;
+      }
+    }
+
+    let stock = 0;
+    if (mapping.stock >= 0 && get(row, "stock") !== "") {
+      const parsed = parseCount(row[mapping.stock]);
+      if (Number.isNaN(parsed)) {
+        notes.push("stok tidak valid, dianggap 0");
+      } else {
+        stock = parsed;
+      }
+    }
+
+    let status = "ok";
+    let message = "";
+
+    if (errors.length) {
+      status = "invalid";
+      message = errors.join(", ");
+    } else if (existing.has(code)) {
+      status = "exists";
+      message = "sudah ada di database, dilewati";
+    } else if (seen.has(code)) {
+      status = "duplicate";
+      message = "kode ganda di file, dilewati";
+    } else {
+      seen.add(code);
+    }
+
+    records.push({
+      row: r + 1,
+      code,
+      name,
+      specification,
+      unit,
+      category,
+      location,
+      minimum,
+      stock,
+      status,
+      message,
+      notes
+    });
+  }
+
+  return records;
+}
+
+export function summarize(records) {
+  const count = status => records.filter(r => r.status === status).length;
+  return {
+    total: records.length,
+    ok: count("ok"),
+    exists: count("exists"),
+    duplicate: count("duplicate"),
+    invalid: count("invalid"),
+    withStock: records.filter(r => r.status === "ok" && r.stock > 0).length
+  };
+}
