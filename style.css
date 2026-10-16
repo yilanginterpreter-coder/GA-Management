@@ -181,3 +181,23 @@ footer span{padding:0 5px;color:var(--sage)}
 .table-wrap tbody tr:nth-child(even){background:#FAFBF8}
 .table-wrap tbody tr:hover{background:#F0F5EC}
 .table-wrap thead th{background:#EEF2EA}
+
+/* Import Excel */
+.import-card{width:min(100%,920px)}
+.import-section{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.import-section h3{font-size:13px;margin-bottom:12px}
+.import-section h3 small{font-weight:400;color:var(--muted)}
+.import-hint{display:block;margin-top:6px;font-size:10px;color:var(--muted)}
+.import-error{color:#B24E46;font-size:12px;font-weight:600;margin:10px 0}
+.import-check{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:11px;cursor:pointer}
+.import-check input{width:auto;margin-top:2px;padding:0}
+.import-summary{font-size:12px;margin-bottom:12px;line-height:1.8}
+.import-summary .ok{color:#43754E}
+.import-summary .bad{color:#B24E46}
+.import-problems{margin-top:14px}
+.import-problems summary{font-size:11px;font-weight:700;cursor:pointer;margin-bottom:8px}
+.import-progress h3{font-size:15px;margin:18px 0 12px}
+.import-progress p{font-size:12px;margin:8px 0}
+.import-bar{height:10px;background:var(--sage-light);border-radius:6px;overflow:hidden}
+.import-bar span{display:block;height:100%;background:var(--sage);transition:width .2s}
+.import-failures{font-size:11px;margin:8px 0 8px 18px;max-height:200px;overflow:auto}
