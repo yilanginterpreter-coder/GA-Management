@@ -54,7 +54,7 @@
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('inventory',this)"><i class="fa-solid fa-boxes-stacked"></i> Inventory & Stok</button>
       <button class="nav-link" onclick="showPage('assets',this)"><i class="fa-solid fa-laptop"></i> Aset Perusahaan</button>
       <button class="nav-link" onclick="showPage('vehicles',this)"><i class="fa-solid fa-car"></i> Kendaraan</button>
-      <button class="nav-link" data-ga-admin-allowed onclick="showPage('facilities',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
+      <button class="nav-link" data-ga-admin-allowed data-employee-allowed onclick="showPage('repairs',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
       <button class="nav-link" data-ga-admin-allowed data-employee-allowed onclick="showPage('requests',this)"><i class="fa-solid fa-clipboard-list"></i> Permintaan Karyawan</button>
       <button class="nav-link" onclick="showPage('accommodation',this)"><i class="fa-solid fa-house"></i> Mess & Akomodasi</button>
       <button class="nav-link" data-ga-admin-allowed onclick="showPage('canteen',this)"><i class="fa-solid fa-utensils"></i> Kantin</button>
@@ -150,6 +150,10 @@
         <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p>Catat kerusakan dan pantau proses perbaikan fasilitas.</p></div><button class="primary-button" onclick="openForm('facilities')"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Fasilitas</th><th>Lokasi</th><th>Kerusakan</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="facilityTable"></tbody></table></div></article>
       </section>
+      <section class="page" id="page-repairs">
+        <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p id="repairSubtitle">Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.</p></div><button class="primary-button" id="newRepairButton"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
+        <article class="panel"><div class="toolbar"><input id="repairSearch" type="search" placeholder="Cari tiket, lokasi, atau masalah..." aria-label="Cari laporan" autocomplete="off"><select id="repairFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pelapor</th><th>Kategori / Lokasi</th><th>Masalah</th><th>Urgensi</th><th>Pelaksana</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="repairTable"><tr><td colspan="9" class="empty-cell">Memuat laporan...</td></tr></tbody></table></div></article>
+      </section>
       <section class="page" id="page-requests">
         <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.</p></div></div>
         <div class="request-tabs"><button type="button" class="primary-button" id="tabCatalog"><i class="fa-solid fa-store"></i> Katalog Barang</button><button type="button" class="secondary-button" id="tabRequests"><i class="fa-solid fa-clipboard-list"></i> Status Permintaan</button></div>
@@ -198,6 +202,7 @@
 <script type="module" src="stock-firebase.js"></script>
 <script type="module" src="assets-firebase.js"></script>
 <script type="module" src="requests-firebase.js"></script>
+<script type="module" src="repairs-firebase.js"></script>
 <script type="module" src="import-inventory.js"></script>
 </body>
 </html>
