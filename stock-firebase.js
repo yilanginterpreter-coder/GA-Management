@@ -74,6 +74,8 @@ function hideOldInventoryUI() {
   const localTable = $("inventoryTable")?.closest("article");
 
   if (localTable) {
+    // Panel lama hanya berisi tombol Transaksi Stok yang sudah ada di judul halaman.
+    localTable.hidden = true;
     localTable.querySelector("table")?.setAttribute("hidden", "");
 
     const toolbar = localTable.querySelector(".toolbar");
@@ -733,8 +735,7 @@ function setupItemPicker() {
 
     if (!term) {
       matches = [];
-      results.innerHTML =
-        `<p class="item-hint">Ketik untuk mencari di ${html(inventory.length)} barang.</p>`;
+      results.innerHTML = "";
       return;
     }
 
@@ -1203,6 +1204,16 @@ $("dataForm")?.addEventListener("submit", async event => {
   }
 }, true);
 
+// Modul Import Excel dimuat dari sini agar tidak bergantung pada index.html.
+// (Modul yang sama tidak akan dijalankan dua kali walau juga dipasang di index.html.)
+const importModuleLoaded = import("./import-inventory.js").then(
+  () => true,
+  error => {
+    console.error("Modul Import Excel gagal dimuat:", error);
+    return false;
+  }
+);
+
 // Dipakai modul import Excel untuk memuat ulang daftar barang.
 window.refreshFirestoreInventory = () =>
   refresh().catch(error => console.error("Gagal memuat ulang stok:", error));
@@ -1272,6 +1283,16 @@ onAuthStateChanged(auth, async user => {
     // Karyawan tidak membaca transaksi stok; modul ini hanya untuk staf GA.
     if (!["main_admin", "ga_admin", "admin_operational"].includes(activeRole)) {
       return;
+    }
+
+    if (canWrite()) {
+      importModuleLoaded.then(ok => {
+        if (!ok && generation === authGeneration) {
+          message(
+            "Fitur Import Excel belum aktif: file import-inventory.js belum terunggah ke GitHub."
+          );
+        }
+      });
     }
 
     await refresh();
