@@ -213,3 +213,51 @@ footer span{padding:0 5px;color:var(--sage)}
 .item-selected{margin-top:8px;padding:9px 12px;border-radius:8px;background:var(--sage-light);color:var(--sage-dark);font-size:11px;font-weight:600}
 
 .item-results:empty{display:none}
+
+/* ===== GA MANAGEMENT | LOGIN MODERN (HANYA HALAMAN LOGIN) ===== */
+[hidden] { display: none !important; }
+#login-screen {
+  position: relative; isolation: isolate; min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 42px 18px 26px; overflow: hidden;
+  background: linear-gradient(140deg,#edf5f1 0%,#f8faf7 47%,#e5f0ed 100%);
+}
+.login-background-orb { position:absolute; z-index:-1; border-radius:50%; pointer-events:none; filter:blur(4px); }
+.login-orb-one { width:420px;height:420px;top:-185px;right:-145px;background:rgba(71,123,121,.10); }
+.login-orb-two { width:340px;height:340px;bottom:-180px;left:-130px;background:rgba(71,123,121,.08); }
+#login-screen .login-card {
+  width:min(100%,440px);padding:37px 37px 31px;border-radius:23px;
+  background:#fff;border:1px solid #e1eae5;
+  box-shadow:0 22px 70px rgba(36,77,70,.11),0 2px 10px rgba(36,77,70,.04);
+}
+.login-brand { display:flex;flex-direction:column;align-items:center;text-align:center; }
+.login-brand-icon { width:66px;height:66px;display:grid;place-items:center;border-radius:19px;background:#477b79;color:#fff;font-size:31px;box-shadow:0 9px 20px rgba(71,123,121,.20); }
+.login-brand-icon i { font-weight:900; }
+#login-screen .login-brand h1 {font-size:26px;line-height:1.25;letter-spacing:-.9px;color:#264e4b;margin:17px 0 6px;font-weight:800;}
+#login-screen .login-brand h1 span {color:#477b79;}
+.login-brand-subtitle {font-size:10px;letter-spacing:1.05px;color:#849b95;font-weight:600;}
+.login-divider {height:1px;background:#e8efea;margin:26px 0 23px;}
+.login-eyebrow {font-size:10px;font-weight:800;letter-spacing:1.7px;color:#477b79;}
+#login-screen .login-intro h2 {font-size:21px;line-height:1.4;letter-spacing:-.5px;color:#264b48;margin:5px 0;}
+#login-screen .login-intro p {font-size:12px;color:#7a8c86;margin-bottom:23px;}
+#login-form {display:flex;flex-direction:column;}
+#login-form>label {font-size:12px;font-weight:700;color:#375d58;margin-bottom:8px;}
+#login-form .login-input-wrap {position:relative;display:flex;align-items:center;margin-bottom:18px;}
+#login-form .login-input-wrap>i {position:absolute;left:14px;color:#7d9b93;font-size:15px;pointer-events:none;}
+#login-form .login-input-wrap input {height:48px;width:100%;padding:12px 45px 12px 43px;border-radius:11px;border:1px solid #d7e4dd;background:#f8fbf9;font-size:13px;color:#294742;transition:border-color .2s,box-shadow .2s;}
+#login-form .login-input-wrap input:focus {outline:none;border-color:#477b79;box-shadow:0 0 0 3px rgba(71,123,121,.13);background:#fff;}
+#login-form .login-toggle-password {position:absolute;right:6px;width:38px;height:38px;border:0;background:transparent;border-radius:8px;color:#7a928b;display:grid;place-items:center;}
+#login-form .login-toggle-password:hover {color:#315e5c;background:#eaf3ef;}
+#login-form .login-submit {display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:49px;margin-top:5px;border:0;border-radius:11px;background:#477b79;color:#fff;font-weight:700;font-size:13px;box-shadow:0 7px 15px rgba(71,123,121,.16);transition:background .2s,transform .2s;}
+#login-form .login-submit:hover {background:#315e5c;transform:translateY(-1px);}
+#login-message {min-height:0;margin-top:12px;color:#b44d43;font-size:12px;line-height:1.5;text-align:center;}
+#login-message:empty {display:none;}
+.login-security {margin-top:21px;text-align:center;color:#8aa09a;font-size:10px;}
+.login-security i {margin-right:5px;color:#477b79;}
+.login-footer {margin-top:22px;color:#829b94;font-size:10px;text-align:center;}
+@media(max-width:520px) {
+  #login-screen {padding:22px 15px;}
+  #login-screen .login-card {padding:30px 22px 25px;border-radius:19px;}
+  #login-screen .login-brand h1 {font-size:24px;}
+  .login-brand-subtitle {font-size:9px;letter-spacing:.65px;}
+}
