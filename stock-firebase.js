@@ -696,6 +696,123 @@ function openInventoryForm() {
   preparePhotoInput();
 }
 
+// Pencarian barang dengan mengetik (menggantikan daftar pilihan panjang).
+function setupItemPicker() {
+  const search = $("trxItemSearch");
+  const hidden = $("trxItemId");
+  const results = $("trxItemResults");
+  const selected = $("trxItemSelected");
+
+  if (!search || !hidden || !results || !selected) return;
+
+  const MAX_RESULTS = 8;
+  let matches = [];
+  let active = 0;
+
+  const label = item => `${item.code} — ${item.name}`;
+
+  function findMatches(term) {
+    const words = term
+      .toLocaleLowerCase("id-ID")
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (!words.length) return [];
+
+    return inventory.filter(item => {
+      const haystack = [
+        item.code, item.name, item.specification, item.category, item.location
+      ].join(" ").toLocaleLowerCase("id-ID");
+
+      return words.every(word => haystack.includes(word));
+    });
+  }
+
+  function render() {
+    const term = search.value.trim();
+
+    if (!term) {
+      matches = [];
+      results.innerHTML =
+        `<p class="item-hint">Ketik untuk mencari di ${html(inventory.length)} barang.</p>`;
+      return;
+    }
+
+    const all = findMatches(term);
+    matches = all.slice(0, MAX_RESULTS);
+    active = Math.min(active, Math.max(matches.length - 1, 0));
+
+    if (!matches.length) {
+      results.innerHTML = `<p class="item-hint">Tidak ada barang yang cocok.</p>`;
+      return;
+    }
+
+    results.innerHTML =
+      matches.map((item, index) => `
+        <button type="button" role="option"
+          class="item-result ${index === active ? "active" : ""}"
+          data-index="${index}">
+          <strong>${html(item.code)}</strong> ${html(item.name)}
+          <small>${item.specification ? html(item.specification) + " · " : ""}stok: ${html(item.stock)} ${html(item.unit)}</small>
+        </button>`).join("") +
+      (all.length > matches.length
+        ? `<p class="item-hint">dan ${all.length - matches.length} barang lain — ketik lebih spesifik.</p>`
+        : "");
+  }
+
+  function choose(item) {
+    hidden.value = item.id;
+    search.value = label(item);
+    search.setCustomValidity("");
+    results.innerHTML = "";
+    selected.hidden = false;
+    selected.textContent =
+      `Dipilih: ${label(item)} (stok: ${item.stock} ${item.unit})`;
+  }
+
+  function clearChoice() {
+    hidden.value = "";
+    selected.hidden = true;
+    selected.textContent = "";
+    search.setCustomValidity("Pilih salah satu barang dari daftar.");
+  }
+
+  clearChoice();
+  render();
+
+  search.addEventListener("input", () => {
+    clearChoice();
+    active = 0;
+    render();
+  });
+
+  search.addEventListener("keydown", event => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!matches.length) return;
+      event.preventDefault();
+      active = (active + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length;
+      render();
+      results.querySelector(".item-result.active")?.scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" && !hidden.value) {
+      // Enter memilih hasil teratas, bukan mengirim formulir.
+      event.preventDefault();
+      if (matches.length) choose(matches[active] || matches[0]);
+    }
+  });
+
+  results.addEventListener("click", event => {
+    const button = event.target.closest(".item-result");
+    if (!button) return;
+    const item = matches[Number(button.dataset.index)];
+    if (item) {
+      choose(item);
+      $("dataForm")?.querySelector('[name="type"]')?.focus();
+    }
+  });
+
+  search.focus();
+}
+
 function openTransactionForm() {
   if (!auth.currentUser || !canWrite()) {
     message("Akun ini tidak memiliki izin transaksi stok.");
@@ -715,17 +832,13 @@ function openTransactionForm() {
   openModal(
     "Transaksi Stok",
     `
-      <div class="field">
-        <label>Pilih Barang *</label>
-        <select name="itemId" required>
-          <option value="">Pilih barang</option>
-          ${inventory.map(i => `
-            <option value="${html(i.id)}">
-              ${html(i.code)} — ${html(i.name)}
-              (stok: ${html(i.stock)} ${html(i.unit)})
-            </option>
-          `).join("")}
-        </select>
+      <div class="field full item-picker">
+        <label for="trxItemSearch">Cari Barang *</label>
+        <input id="trxItemSearch" type="search" autocomplete="off"
+          placeholder="Ketik kode, nama, atau spesifikasi barang...">
+        <input type="hidden" name="itemId" id="trxItemId">
+        <div id="trxItemSelected" class="item-selected" hidden></div>
+        <div id="trxItemResults" class="item-results" role="listbox"></div>
       </div>
 
       <div class="field">
@@ -770,6 +883,8 @@ function openTransactionForm() {
     `,
     "transaction"
   );
+
+  setupItemPicker();
 }
 
 async function getAuthorizedProfile() {
