@@ -28,6 +28,18 @@ const passwordInput = document.getElementById("login-password");
 const loginMessage = document.getElementById("login-message");
 const appContent = document.getElementById("app-content");
 const logoutButton = document.getElementById("logout-button");
+const togglePasswordBtn = document.getElementById("toggle-password");
+const togglePasswordIcon = document.getElementById("toggle-password-icon");
+const loginSubmitBtn = document.getElementById("login-submit-btn");
+
+if (togglePasswordBtn && passwordInput && togglePasswordIcon) {
+  togglePasswordBtn.addEventListener("click", () => {
+    const isPassword = passwordInput.type === "password";
+    passwordInput.type = isPassword ? "text" : "password";
+    togglePasswordIcon.className = isPassword ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
+    togglePasswordBtn.setAttribute("aria-label", isPassword ? "Sembunyikan password" : "Tampilkan password");
+  });
+}
 
 
 async function readInventoryFromFirestore() {
@@ -148,16 +160,36 @@ async function saveStockTransactionToFirestore(data) {
     });
   });
 }
-function showMessage(message) {
+function showMessage(message, type = "error") {
   if (loginMessage) {
     loginMessage.textContent = message;
+    loginMessage.className = "login-message";
+    if (message) {
+      loginMessage.classList.add(type);
+    }
   }
 }
 
-function showLogin(message = "") {
+function showLogin(message = "", type = "error") {
   if (loginScreen) loginScreen.hidden = false;
   if (appContent) appContent.hidden = true;
-  showMessage(message);
+  showMessage(message, type);
+}
+
+function setSubmittingState(isSubmitting) {
+  if (!loginSubmitBtn) return;
+  loginSubmitBtn.disabled = isSubmitting;
+  if (isSubmitting) {
+    loginSubmitBtn.innerHTML = `
+      <i class="fa-solid fa-circle-notch btn-spinner"></i>
+      <span class="btn-text">Memproses...</span>
+    `;
+  } else {
+    loginSubmitBtn.innerHTML = `
+      <span class="btn-text">Masuk</span>
+      <i class="fa-solid fa-arrow-right btn-icon"></i>
+    `;
+  }
 }
 
 const ROLE_LABELS = {
@@ -225,7 +257,8 @@ async function checkUserRole(user) {
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showMessage("Sedang masuk...");
+    showMessage("");
+    setSubmittingState(true);
 
     try {
       await authPersistenceReady;
@@ -239,26 +272,28 @@ if (loginForm) {
       await credential.user.reload();
 
       if (!credential.user.emailVerified) {
-  await sendEmailVerification(credential.user);
-  await signOut(auth);
-  showLogin("Email verifikasi sudah dikirim. Periksa kotak masuk atau folder Spam.");
-  return;
-}
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        showLogin("Email verifikasi sudah dikirim. Periksa kotak masuk atau folder Spam.", "info");
+        return;
+      }
 
       await checkUserRole(credential.user);
-      showMessage("Login berhasil.");
+      showMessage("Login berhasil.", "success");
     } catch (error) {
       console.error("Login gagal:", error.code || error.message);
 
       await signOut(auth).catch(() => {});
 
       if (error.message === "ROLE_NOT_FOUND") {
-        showLogin("Akun belum diberi akses oleh Main Admin.");
+        showLogin("Akun belum diberi akses oleh Main Admin.", "error");
       } else if (error.message === "ROLE_INVALID") {
-        showLogin("Akun tidak aktif atau role tidak valid.");
+        showLogin("Akun tidak aktif atau role tidak valid.", "error");
       } else {
-        showLogin("Login gagal. Periksa email, password, dan akses akun.");
+        showLogin("Login gagal. Periksa email, password, dan akses akun.", "error");
       }
+    } finally {
+      setSubmittingState(false);
     }
   });
 }
