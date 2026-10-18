@@ -197,7 +197,8 @@ const ROLE_LABELS = {
   main_admin: "Main Admin",
   ga_admin: "GA Admin",
   admin_operational: "Admin Operational",
-  employee: "Karyawan"
+  employee: "Karyawan",
+  vendor: "Vendor Portal"
 };
 
 function showProfile(name, role) {
@@ -235,7 +236,8 @@ function validRole(role) {
     "main_admin",
     "ga_admin",
     "admin_operational",
-    "employee"
+    "employee",
+    "vendor"
   ].includes(role);
 }
 
