@@ -1,310 +1,1004 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =========================================================================
-    // HELPER FUNCTIONS & AUTHENTICATION/AUTHORIZATION
-    // =========================================================================
-
-    function isAuthenticated() {
-      return request.auth != null;
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function inventoryPath(itemId) {
+      return /databases/$(database)/documents/inventory/$(itemId);
     }
 
-    function userExists() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    function transactionPath(transactionId) {
+      return /databases/$(database)/documents/transactions/$(transactionId);
     }
 
-    function isActiveUser() {
-      return userExists() && getUserData().active == true;
+    function activeUser() {
+      return request.auth != null
+        && exists(userPath())
+        && get(userPath()).data.active == true;
     }
 
-    function getUserRole() {
-      return getUserData().role;
+    function canRead() {
+      return activeUser()
+        && get(userPath()).data.role
+          in ["main_admin", "ga_admin", "admin_operational"];
     }
 
-    function isMainAdmin() {
-      return isActiveUser() && getUserRole() == 'main_admin';
+    function canTransact() {
+      return activeUser()
+        && get(userPath()).data.role
+          in ["main_admin", "ga_admin"];
+    }
+
+    function isEmployee() {
+      return activeUser()
+        && get(userPath()).data.role == "employee";
     }
 
     function isVendorRole() {
-      return isActiveUser() && getUserRole() == 'vendor';
+      return activeUser()
+        && get(userPath()).data.role == "vendor";
     }
 
-    function isEmployeeRole() {
-      return isActiveUser() && getUserRole() == 'employee';
+    function canReadItems() {
+      return canRead() || isEmployee();
+    }
+
+    function requestUserOk() {
+      return activeUser()
+        && get(userPath()).data.role
+          in ["main_admin", "ga_admin", "admin_operational", "employee"];
+    }
+
+    function isMain() {
+      return activeUser()
+        && get(userPath()).data.role == "main_admin";
     }
 
     function getVendorId() {
-      return getUserData().vendorId;
+      return get(userPath()).data.get("vendorId", "");
     }
 
     function hasVendorId() {
-      return isVendorRole() && ('vendorId' in getUserData()) && getUserData().vendorId != null && getUserData().vendorId != '';
+      return isVendorRole()
+        && ("vendorId" in get(userPath()).data)
+        && get(userPath()).data.vendorId != null
+        && get(userPath()).data.vendorId != "";
     }
 
-    function hasPerm(menuKey) {
-      return isActiveUser() && (
-        getUserRole() == 'main_admin' ||
-        (
-          (getUserRole() == 'ga_admin' || getUserRole() == 'admin_operational') &&
-          (
-            (getUserData().permissions != null && getUserData().permissions[menuKey] == true) ||
-            (getUserData().permissions == null && getUserRole() == 'ga_admin' && menuKey in ['inventory', 'requests', 'procurement', 'repairs', 'assets', 'vendors', 'vehicles'])
+    // Hak akses per menu. Main Admin selalu penuh. Admin lain memakai
+    // peta "permissions" di dokumen users; bila belum ada, GA Admin
+    // memakai bawaan lama (inventory, requests, repairs).
+    function hasPerm(key) {
+      let u = get(userPath()).data;
+
+      return activeUser()
+        && (
+          u.role == "main_admin"
+          || (
+            u.role in ["ga_admin", "admin_operational"]
+            && (
+              (
+                "permissions" in u
+                && u.permissions.get(key, false) == true
+              )
+              || (
+                !("permissions" in u)
+                && u.role == "ga_admin"
+                && key in ["inventory", "requests", "repairs", "procurement", "vendors", "vehicles", "assets"]
+              )
+            )
+          )
+        );
+    }
+
+    function validProfileSelf(userId) {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return request.auth.uid == userId
+        && activeUser()
+        && after.diff(before).affectedKeys().hasOnly([
+          "name", "username", "photoData"
+        ])
+        && after.name is string
+        && after.name.size() > 0
+        && after.name.size() <= 60
+        && (
+          !("username" in after)
+          || (
+            after.username is string
+            && after.username.matches('^[A-Za-z0-9._-]{0,30}$')
           )
         )
-      );
+        && (
+          !("photoData" in after)
+          || validPhotoValue(after.photoData)
+        );
     }
 
-    // Check if security-critical fields are modified on user document
-    function isModifyingUserSecurityFields() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['role', 'active', 'permissions', 'vendorId', 'email', 'id']);
+    function boolOrMissing(map, key) {
+      return !(key in map) || map[key] is bool;
+    }
+
+    // Main Admin mengatur hak akses Admin lain.
+    function validPermissionsWrite() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let p = after.permissions;
+
+      return isMain()
+        && before.role in ["ga_admin", "admin_operational"]
+        && after.diff(before).affectedKeys().hasOnly(["permissions"])
+        && p is map
+        && p.keys().hasOnly([
+          "inventory", "requests", "assets", "vehicles", "repairs",
+          "meals", "vendors", "reports", "procurement"
+        ])
+        && boolOrMissing(p, "inventory")
+        && boolOrMissing(p, "requests")
+        && boolOrMissing(p, "assets")
+        && boolOrMissing(p, "vehicles")
+        && boolOrMissing(p, "repairs")
+        && boolOrMissing(p, "meals")
+        && boolOrMissing(p, "vendors")
+        && boolOrMissing(p, "reports")
+        && boolOrMissing(p, "procurement");
+    }
+
+    function settingsPath() {
+      return /databases/$(database)/documents/settings/handoverSlots;
+    }
+
+    function validSlot(value) {
+      return value is string
+        && value.matches('^[0-9]{2}:[0-9]{2} - [0-9]{2}:[0-9]{2}$');
+    }
+
+    function validSlotsWrite() {
+      let d = request.resource.data;
+
+      return canTransact()
+        && hasPerm("requests")
+        && d.keys().hasAll([
+          "slots", "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && d.keys().hasOnly([
+          "slots", "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && d.slots is list
+        && d.slots.size() >= 1
+        && d.slots.size() <= 3
+        && validSlot(d.slots[0])
+        && (d.slots.size() < 2 || validSlot(d.slots[1]))
+        && (d.slots.size() < 3 || validSlot(d.slots[2]))
+        && d.updatedBy == request.auth.uid
+        && d.updatedByName == get(userPath()).data.name
+        && d.updatedAt == request.time;
+    }
+
+    function validRequestCreate(requestId) {
+      let d = request.resource.data;
+      let item = get(inventoryPath(d.itemId)).data;
+
+      return requestUserOk()
+        && d.keys().hasAll([
+          "ticketNo", "type", "requesterUid", "requesterName",
+          "department", "itemId", "itemCode", "itemName", "unit",
+          "quantity", "reason", "handoverDate", "handoverSlot",
+          "status", "createdAt", "updatedAt"
+        ])
+        && d.keys().hasOnly([
+          "ticketNo", "type", "requesterUid", "requesterName",
+          "department", "itemId", "itemCode", "itemName", "unit",
+          "quantity", "reason", "handoverDate", "handoverSlot",
+          "status", "createdAt", "updatedAt"
+        ])
+        && requestId.matches('^REQ-[0-9]{6}-[A-Z0-9]{6}$')
+        && d.ticketNo == requestId
+        && d.type == "barang"
+        && d.requesterUid == request.auth.uid
+        && d.requesterName == get(userPath()).data.name
+        && d.department == get(userPath()).data.get("department", "")
+        && d.itemId is string
+        && d.itemId.size() > 0
+        && exists(inventoryPath(d.itemId))
+        && d.itemCode == item.code
+        && d.itemName == item.name
+        && d.unit == item.unit
+        && d.quantity is int
+        && d.quantity > 0
+        && d.quantity <= item.stock
+        && d.reason is string
+        && d.reason.size() > 0
+        && d.reason.size() <= 500
+        && d.handoverDate is string
+        && d.handoverDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.handoverSlot is string
+        && d.handoverSlot in get(settingsPath()).data.slots
+        && d.status == "Menunggu"
+        && d.createdAt == request.time
+        && d.updatedAt == request.time;
+    }
+
+    function validRequestReview() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return canTransact()
+        && hasPerm("requests")
+        && before.status == "Menunggu"
+        && after.status in ["Disetujui", "Ditolak"]
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "reviewedBy",
+          "reviewedByName", "reviewedAt", "updatedAt"
+        ])
+        && after.statusNote is string
+        && after.statusNote.size() <= 500
+        && (after.status == "Disetujui" || after.statusNote.size() > 0)
+        && after.reviewedBy == request.auth.uid
+        && after.reviewedByName == get(userPath()).data.name
+        && after.reviewedAt == request.time
+        && after.updatedAt == request.time;
+    }
+
+    function validRequestCancel() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return activeUser()
+        && before.requesterUid == request.auth.uid
+        && before.status == "Menunggu"
+        && after.status == "Dibatalkan"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "updatedAt"
+        ])
+        && after.statusNote is string
+        && after.statusNote.size() > 0
+        && after.statusNote.size() <= 500
+        && after.updatedAt == request.time;
+    }
+
+    function validRequestHandover() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return canTransact()
+        && hasPerm("requests")
+        && before.status == "Disetujui"
+        && after.status == "Diserahkan"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "transactionId", "handedOverBy",
+          "handedOverByName", "handedOverAt", "updatedAt"
+        ])
+        && after.transactionId is string
+        && after.transactionId.size() > 0
+        && after.handedOverBy == request.auth.uid
+        && after.handedOverByName == get(userPath()).data.name
+        && after.handedOverAt == request.time
+        && after.updatedAt == request.time
+        && existsAfter(transactionPath(after.transactionId))
+        && getAfter(transactionPath(after.transactionId)).data.itemId
+          == before.itemId
+        && getAfter(transactionPath(after.transactionId)).data.quantity
+          == before.quantity
+        && getAfter(transactionPath(after.transactionId)).data.type
+          == "Keluar";
+    }
+
+    function validAssetData(data) {
+      return data.code is string
+        && data.code.size() >= 2
+        && data.code.size() <= 60
+
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 150
+
+        && data.category in [
+          "Laptop", "Komputer", "AC",
+          "Meja & Kursi", "Printer",
+          "Kendaraan", "Peralatan", "Lainnya"
+        ]
+
+        && data.location is string
+        && data.location.size() > 0
+        && data.location.size() <= 150
+
+        && data.owner is string
+        && data.owner.size() <= 150
+
+        && data.condition in [
+          "Baik", "Perlu Perbaikan", "Rusak"
+        ]
+
+        && data.status in [
+          "Aktif", "Dipinjam",
+          "Dalam Perbaikan", "Tidak Aktif"
+        ]
+
+        && data.date is string
+        && (
+          data.date == ""
+          || data.date.matches(
+            '^\\d{4}-\\d{2}-\\d{2}$'
+          )
+        )
+
+        && data.value is number
+        && data.value >= 0
+        && data.value <= 9007199254740991;
+    }
+
+    function validStock(value) {
+      return value is int
+        && value >= 0
+        && value <= 9007199254740991;
+    }
+
+    function validQuantity(value) {
+      return value is int
+        && value > 0
+        && value <= 9007199254740991;
+    }
+
+    function validTransactionData(data) {
+      return data.keys().hasAll([
+          "itemId", "code", "name", "type", "quantity",
+          "stockBefore", "stockAfter", "date", "note",
+          "createdBy", "createdByName", "createdByRole",
+          "createdAt", "testOnly"
+        ])
+        && data.keys().hasOnly([
+          "itemId", "code", "name", "type", "quantity",
+          "stockBefore", "stockAfter", "date", "note",
+          "createdBy", "createdByName", "createdByRole",
+          "createdAt", "testOnly"
+        ])
+        && data.itemId is string
+        && data.itemId.size() > 0
+        && data.code is string
+        && data.name is string
+        && data.type in ["Masuk", "Keluar"]
+        && validQuantity(data.quantity)
+        && validStock(data.stockBefore)
+        && validStock(data.stockAfter)
+        && data.date is string
+        && data.date.matches(
+          '^\\d{4}-\\d{2}-\\d{2}$'
+        )
+        && data.note is string
+        && data.createdBy == request.auth.uid
+        && data.createdByRole == get(userPath()).data.role
+        && data.createdByName == get(userPath()).data.name
+        && data.createdAt == request.time
+        && data.testOnly == false;
+    }
+
+    function validPhoto(data) {
+      return !("photoData" in data)
+        || (
+          data.photoData is string
+          && data.photoData.size() <= 125000
+          && (
+            data.photoData == ""
+            || data.photoData.matches(
+              '^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'
+            )
+          )
+        );
+    }
+
+    // =====================================
+    // PERBAIKAN / KERUSAKAN FASILITAS
+    // =====================================
+    function validPhotoValue(value) {
+      return value is string
+        && value.size() <= 125000
+        && (
+          value == ""
+          || value.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$')
+        );
+    }
+
+    function validRepairCreate(repairId) {
+      let d = request.resource.data;
+
+      return requestUserOk()
+        && d.keys().hasAll([
+          "ticketNo", "type", "requesterUid", "requesterName",
+          "department", "category", "location", "description",
+          "urgency", "photoData", "status", "createdAt", "updatedAt"
+        ])
+        && d.keys().hasOnly([
+          "ticketNo", "type", "requesterUid", "requesterName",
+          "department", "category", "location", "description",
+          "urgency", "photoData", "status", "createdAt", "updatedAt"
+        ])
+        && repairId.matches('^RPR-[0-9]{6}-[A-Z0-9]{6}$')
+        && d.ticketNo == repairId
+        && d.type == "perbaikan"
+        && d.requesterUid == request.auth.uid
+        && d.requesterName == get(userPath()).data.name
+        && d.department == get(userPath()).data.get("department", "")
+        && d.category is string
+        && d.category.size() > 0
+        && d.category.size() <= 50
+        && d.location is string
+        && d.location.size() > 0
+        && d.location.size() <= 150
+        && d.description is string
+        && d.description.size() > 0
+        && d.description.size() <= 1000
+        && d.urgency in ["Rendah", "Sedang", "Mendesak"]
+        && validPhotoValue(d.photoData)
+        && d.status == "Baru"
+        && d.createdAt == request.time
+        && d.updatedAt == request.time;
+    }
+
+    // Bagian yang sama untuk semua perubahan oleh admin GA.
+    function repairAdminStamp() {
+      let after = request.resource.data;
+
+      return canTransact()
+        && hasPerm("repairs")
+        && after.updatedBy == request.auth.uid
+        && after.updatedByName == get(userPath()).data.name
+        && after.updatedAt == request.time
+        && after.statusNote is string
+        && after.statusNote.size() <= 500;
+    }
+
+    // Baru -> Disetujui / Ditolak
+    function validRepairReview() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return repairAdminStamp()
+        && before.status == "Baru"
+        && after.status in ["Disetujui", "Ditolak"]
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && (after.status == "Disetujui" || after.statusNote.size() > 0);
+    }
+
+    // Disetujui / Menunggu Part -> Dikerjakan
+    function validRepairStart() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return repairAdminStamp()
+        && before.status in ["Disetujui", "Menunggu Part"]
+        && after.status == "Dikerjakan"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "executor", "vendorName",
+          "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && after.executor in ["Internal", "Vendor"]
+        && after.vendorName is string
+        && after.vendorName.size() <= 100
+        && (after.executor == "Internal" || after.vendorName.size() > 0);
+    }
+
+    // Dikerjakan -> Menunggu Part
+    function validRepairHold() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return repairAdminStamp()
+        && before.status == "Dikerjakan"
+        && after.status == "Menunggu Part"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && after.statusNote.size() > 0;
+    }
+
+    // Dikerjakan / Menunggu Part -> Selesai
+    function validRepairFinish() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return repairAdminStamp()
+        && before.status in ["Dikerjakan", "Menunggu Part"]
+        && after.status == "Selesai"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "actionNote", "completedDate", "cost",
+          "afterPhotoData", "updatedBy", "updatedByName", "updatedAt"
+        ])
+        && after.actionNote is string
+        && after.actionNote.size() > 0
+        && after.actionNote.size() <= 1000
+        && after.completedDate is string
+        && after.completedDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && after.cost is int
+        && after.cost >= 0
+        && after.cost <= 100000000000
+        && validPhotoValue(after.afterPhotoData);
+    }
+
+    // Pelapor membatalkan laporan yang masih "Baru".
+    function validRepairCancel() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return activeUser()
+        && before.requesterUid == request.auth.uid
+        && before.status == "Baru"
+        && after.status == "Dibatalkan"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "statusNote", "updatedAt"
+        ])
+        && after.statusNote is string
+        && after.statusNote.size() > 0
+        && after.statusNote.size() <= 500
+        && after.updatedAt == request.time;
+    }
+
+    function validSpec(data) {
+      return !("specification" in data)
+        || (
+          data.specification is string
+          && data.specification.size() <= 200
+        );
+    }
+
+    function accessMenu(value) {
+      return value in [
+        "inventory", "requests", "assets", "vehicles", "repairs",
+        "meals", "vendors", "reports", "procurement"
+      ];
+    }
+
+    function validAccessCreate(accessId) {
+      let d = request.resource.data;
+
+      return activeUser()
+        && get(userPath()).data.role in ["ga_admin", "admin_operational"]
+        && d.keys().hasOnly([
+          "uid", "userName", "role", "menu", "menuLabel",
+          "status", "createdAt", "updatedAt"
+        ])
+        && d.keys().hasAll([
+          "uid", "userName", "role", "menu", "menuLabel",
+          "status", "createdAt", "updatedAt"
+        ])
+        && d.uid == request.auth.uid
+        && d.userName == get(userPath()).data.name
+        && d.role == get(userPath()).data.role
+        && accessMenu(d.menu)
+        && accessId == d.uid + "_" + d.menu
+        && d.menuLabel is string
+        && d.menuLabel.size() > 0
+        && d.menuLabel.size() <= 60
+        && d.status == "Menunggu"
+        && d.createdAt == request.time
+        && d.updatedAt == request.time;
+    }
+
+    // Main Admin menyetujui / menolak.
+    function validAccessDecision() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return isMain()
+        && before.status == "Menunggu"
+        && after.status in ["Disetujui", "Ditolak"]
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "decidedBy", "decidedByName", "updatedAt"
+        ])
+        && after.decidedBy == request.auth.uid
+        && after.decidedByName == get(userPath()).data.name
+        && after.updatedAt == request.time;
+    }
+
+    // Peminta mengajukan lagi (setelah ditolak, atau akses sudah dicabut).
+    function validAccessAgain() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return activeUser()
+        && before.uid == request.auth.uid
+        && before.status in ["Disetujui", "Ditolak"]
+        && after.status == "Menunggu"
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "createdAt", "updatedAt"
+        ])
+        && after.createdAt == request.time
+        && after.updatedAt == request.time;
+    }
+
+    function validInventoryUpdate(itemId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let transactionId = after.get("lastTransactionId", "");
+      let transactionData =
+        getAfter(transactionPath(transactionId)).data;
+
+      return canTransact()
+        && hasPerm("inventory")
+        && validStock(before.stock)
+        && validStock(after.stock)
+        && transactionId is string
+        && transactionId.size() > 0
+        && after.keys().hasAll([
+          "lastTransactionId", "lastStockBefore"
+        ])
+        && after.diff(before).affectedKeys().hasOnly([
+          "stock", "lastTransactionId", "lastStockBefore"
+        ])
+        && after.lastStockBefore == before.stock
+        && !exists(transactionPath(transactionId))
+        && validTransactionData(transactionData)
+        && transactionData.itemId == itemId
+        && transactionData.code == before.code
+        && transactionData.name == before.name
+        && transactionData.stockBefore == before.stock
+        && transactionData.stockAfter == after.stock
+        && (
+          (
+            transactionData.type == "Masuk"
+            && after.stock ==
+              before.stock + transactionData.quantity
+          )
+          ||
+          (
+            transactionData.type == "Keluar"
+            && after.stock ==
+              before.stock - transactionData.quantity
+          )
+        );
+    }
+
+    function validTransactionCreate(transactionId) {
+      let data = request.resource.data;
+      let before = get(inventoryPath(data.itemId)).data;
+      let after = getAfter(inventoryPath(data.itemId)).data;
+
+      return canTransact()
+        && hasPerm("inventory")
+        && validTransactionData(data)
+        && exists(inventoryPath(data.itemId))
+        && data.code == before.code
+        && data.name == before.name
+        && data.stockBefore == before.stock
+        && data.stockAfter == after.stock
+        && after.lastTransactionId == transactionId
+        && after.lastStockBefore == before.stock
+        && before.get("lastTransactionId", "") != transactionId
+        && (
+          (
+            data.type == "Masuk"
+            && data.stockAfter ==
+              data.stockBefore + data.quantity
+          )
+          ||
+          (
+            data.type == "Keluar"
+            && data.stockAfter ==
+              data.stockBefore - data.quantity
+          )
+        );
     }
 
     // =========================================================================
-    // 1. USERS COLLECTION
+    // MATCH RULES
     // =========================================================================
+
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      // Main admin can write any user document
-      allow create: if isMainAdmin() || (
-        isAuthenticated() &&
-        request.auth.uid == userId &&
-        !request.resource.data.keys().hasAny(['role', 'active', 'permissions', 'vendorId'])
-      );
-      allow update: if isMainAdmin() || (
-        isAuthenticated() &&
-        request.auth.uid == userId &&
-        !isModifyingUserSecurityFields()
-      );
-      allow delete: if isMainAdmin();
+      allow get: if request.auth != null
+        && (request.auth.uid == userId || isMain());
+
+      allow list: if isMain();
+
+      allow update: if validProfileSelf(userId)
+        || validPermissionsWrite();
+
+      allow create, delete: if false;
     }
 
-    // =========================================================================
-    // 2. INVENTORY COLLECTION
-    // =========================================================================
+    // =====================================
+    // PERMINTAAN HAK AKSES (ADMIN -> MAIN ADMIN)
+    // =====================================
+    match /accessRequests/{accessId} {
+      allow get, list: if canRead()
+        || (activeUser()
+          && resource.data.uid == request.auth.uid);
+
+      allow create: if validAccessCreate(accessId);
+
+      allow update: if validAccessDecision()
+        || validAccessAgain();
+
+      allow delete: if false;
+    }
+
     match /inventory/{itemId} {
-      allow read: if isActiveUser();
-      allow create, update: if hasPerm('inventory') &&
-        (!('photoData' in request.resource.data) ||
-          (request.resource.data.photoData is string &&
-           request.resource.data.photoData.size() <= 125000 &&
-           (request.resource.data.photoData == '' ||
-            request.resource.data.photoData.matches('^data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+$'))));
-      allow delete: if hasPerm('inventory');
+      allow get, list: if canReadItems();
+
+      allow create: if canTransact()
+        && hasPerm("inventory")
+        && request.resource.data.keys().hasAll([
+          "code", "name", "category", "unit",
+          "location", "minimum", "stock",
+          "createdBy", "createdByName",
+          "createdByRole", "createdAt"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "code", "name", "category", "unit",
+          "location", "minimum", "stock",
+          "createdBy", "createdByName",
+          "createdByRole", "createdAt", "photoData", "specification"
+        ])
+        && validPhoto(request.resource.data)
+        && validSpec(request.resource.data)
+        && itemId.matches('^[A-Z0-9_-]{2,60}$')
+        && request.resource.data.code == itemId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 100
+        && request.resource.data.unit is string
+        && request.resource.data.unit.size() > 0
+        && request.resource.data.unit.size() <= 40
+        && request.resource.data.location is string
+        && request.resource.data.location.size() > 0
+        && request.resource.data.location.size() <= 150
+        && validStock(request.resource.data.minimum)
+        && request.resource.data.stock == 0
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName == get(userPath()).data.name
+        && request.resource.data.createdByRole == get(userPath()).data.role
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if validInventoryUpdate(itemId)
+      || (
+        canTransact()
+        && hasPerm("inventory")
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            "name", "category", "unit", "location", "minimum", "photoData", "specification"
+          ])
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasAny([
+            "name", "category", "unit", "location", "minimum", "photoData", "specification"
+          ])
+        && validPhoto(request.resource.data)
+        && validSpec(request.resource.data)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 100
+        && request.resource.data.unit is string
+        && request.resource.data.unit.size() > 0
+        && request.resource.data.unit.size() <= 40
+        && request.resource.data.location is string
+        && request.resource.data.location.size() > 0
+        && request.resource.data.location.size() <= 150
+        && validStock(request.resource.data.minimum)
+      );
+
+      allow delete: if false;
+    }
+
+    // =====================================
+    // ASET PERUSAHAAN
+    // =====================================
+    match /assets/{assetId} {
+      allow get, list: if canRead();
+
+      allow create: if canTransact()
+        && hasPerm("assets")
+        && assetId.matches('^[A-Z0-9_-]{2,60}$')
+        && request.resource.data.keys().hasAll([
+          "code", "name", "category", "location",
+          "owner", "condition", "status", "date",
+          "value", "createdBy", "createdByName",
+          "createdByRole", "createdAt"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "code", "name", "category", "location",
+          "owner", "condition", "status", "date",
+          "value", "createdBy", "createdByName",
+          "createdByRole", "createdAt"
+        ])
+        && request.resource.data.code == assetId
+        && validAssetData(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByName ==
+          get(userPath()).data.name
+        && request.resource.data.createdByRole ==
+          get(userPath()).data.role
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if canTransact()
+        && hasPerm("assets")
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            "name", "category", "location", "owner",
+            "condition", "status", "date", "value"
+          ])
+        && validAssetData(request.resource.data);
+
+      allow delete: if false;
+    }
+
+    // =====================================
+    // PERMINTAAN BARANG (KARYAWAN -> GA)
+    // =====================================
+    match /serviceRequests/{requestId} {
+      allow get, list: if canRead()
+        || (activeUser()
+          && resource.data.requesterUid == request.auth.uid);
+
+      allow create: if validRequestCreate(requestId);
+
+      allow update: if validRequestReview()
+        || validRequestCancel()
+        || validRequestHandover();
+
+      allow delete: if false;
+    }
+
+    // =====================================
+    // LAPORAN PERBAIKAN (KARYAWAN -> ADMIN GA)
+    // =====================================
+    match /repairRequests/{repairId} {
+      allow get, list: if canRead()
+        || (activeUser()
+          && resource.data.requesterUid == request.auth.uid);
+
+      allow create: if validRepairCreate(repairId);
+
+      allow update: if validRepairReview()
+        || validRepairStart()
+        || validRepairHold()
+        || validRepairFinish()
+        || validRepairCancel();
+
+      allow delete: if false;
+    }
+
+    // =====================================
+    // PENGATURAN & SLOTS
+    // =====================================
+    match /settings/{settingId} {
+      allow get: if activeUser()
+        && (
+          (settingId == "handoverSlots" && requestUserOk())
+          || (settingId == "poConfig" && (canRead() || hasPerm("procurement")))
+        );
+
+      allow create, update: if (settingId == "handoverSlots" && validSlotsWrite())
+        || (settingId == "poConfig" && isMain());
+
+      allow list, delete: if false;
+    }
+
+    match /transactions/{transactionId} {
+      allow get, list: if canRead();
+
+      allow create: if validTransactionCreate(transactionId);
+
+      allow update, delete: if false;
     }
 
     // =========================================================================
-    // 3. TRANSACTIONS COLLECTION (Inventory Stock History)
+    // NEW COLLECTIONS (PR, PO, VENDORS, VEHICLES, QUOTES, ANNOUNCEMENTS, GR, ARCHIVE)
     // =========================================================================
-    match /transactions/{txId} {
-      allow read: if isActiveUser();
-      allow create: if hasPerm('inventory') || hasPerm('requests') || hasPerm('procurement');
-      allow update, delete: if isMainAdmin();
-    }
 
-    // =========================================================================
-    // 4. SERVICE REQUESTS COLLECTION (Permintaan Barang)
-    // =========================================================================
-    match /serviceRequests/{reqId} {
-      allow read: if isActiveUser() && (
-        hasPerm('requests') ||
-        resource.data.requesterUid == request.auth.uid ||
-        resource.data.userUid == request.auth.uid
-      );
-      allow create: if isActiveUser() && (
-        request.resource.data.requesterUid == request.auth.uid ||
-        request.resource.data.userUid == request.auth.uid
-      );
-      allow update: if isActiveUser() && (
-        hasPerm('requests') ||
-        (
-          (resource.data.requesterUid == request.auth.uid || resource.data.userUid == request.auth.uid) &&
-          resource.data.status in ['Pending', 'Submitted'] &&
-          request.resource.data.status in ['Pending', 'Submitted', 'Canceled', 'Batal']
-        )
-      );
-      allow delete: if hasPerm('requests');
-    }
-
-    // =========================================================================
-    // 5. REPAIR REQUESTS COLLECTION (Lapor Perbaikan)
-    // =========================================================================
-    match /repairRequests/{repId} {
-      allow read: if isActiveUser() && (
-        hasPerm('repairs') ||
-        resource.data.requesterUid == request.auth.uid ||
-        resource.data.userUid == request.auth.uid
-      );
-      allow create: if isActiveUser() && (
-        request.resource.data.requesterUid == request.auth.uid ||
-        request.resource.data.userUid == request.auth.uid
-      );
-      allow update: if isActiveUser() && (
-        hasPerm('repairs') ||
-        (
-          (resource.data.requesterUid == request.auth.uid || resource.data.userUid == request.auth.uid) &&
-          resource.data.status in ['Melapor', 'Pending'] &&
-          request.resource.data.status in ['Melapor', 'Pending', 'Canceled', 'Batal']
-        )
-      );
-      allow delete: if hasPerm('repairs');
-    }
-
-    // =========================================================================
-    // 6. VEHICLE REQUESTS COLLECTION (Permintaan Kendaraan)
-    // =========================================================================
     match /vehicleRequests/{vReqId} {
-      allow read: if isActiveUser() && (
-        hasPerm('vehicles') ||
+      allow get, list: if activeUser() && (
+        hasPerm("vehicles") ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create: if isActiveUser() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActiveUser() && (
-        hasPerm('vehicles') ||
+      allow create: if activeUser() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if activeUser() && (
+        hasPerm("vehicles") ||
         (
           resource.data.requesterUid == request.auth.uid &&
-          resource.data.status == 'Pending' &&
-          request.resource.data.status in ['Pending', 'Canceled']
+          resource.data.status == "Pending" &&
+          request.resource.data.status in ["Pending", "Canceled"]
         )
       );
-      allow delete: if hasPerm('vehicles');
+      allow delete: if hasPerm("vehicles");
     }
 
-    // =========================================================================
-    // 7. VEHICLES COLLECTION (Fleet Master)
-    // =========================================================================
     match /vehicles/{vehicleId} {
-      allow read: if isActiveUser();
-      allow write: if hasPerm('vehicles');
+      allow get, list: if activeUser();
+      allow create, update, delete: if hasPerm("vehicles");
     }
 
-    // =========================================================================
-    // 8. PROCUREMENT REQUISITIONS COLLECTION (PR)
-    // =========================================================================
     match /procurementRequisitions/{prId} {
-      allow read: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow get, list: if activeUser() && (
+        hasPerm("procurement") ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create: if isActiveUser() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow create: if activeUser() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if activeUser() && (
+        hasPerm("procurement") ||
         (
           resource.data.requesterUid == request.auth.uid &&
-          resource.data.status in ['Diajukan', 'Pending'] &&
-          request.resource.data.status in ['Diajukan', 'Pending', 'Canceled']
+          resource.data.status in ["Diajukan", "Pending"] &&
+          request.resource.data.status in ["Diajukan", "Pending", "Canceled"]
         )
       );
-      allow delete: if hasPerm('procurement');
+      allow delete: if hasPerm("procurement");
     }
 
-    // =========================================================================
-    // 9. PURCHASE ORDERS COLLECTION (PO)
-    // =========================================================================
     match /purchaseOrders/{poId} {
-      // Vendors can only read POs matching their vendorId. Unassigned vendors cannot list/read.
-      allow read: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow get, list: if activeUser() && (
+        hasPerm("procurement") ||
         (hasVendorId() && resource.data.vendorId == getVendorId()) ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create: if hasPerm('procurement');
-      allow update: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow create: if hasPerm("procurement");
+      allow update: if activeUser() && (
+        hasPerm("procurement") ||
         (
           hasVendorId() &&
           resource.data.vendorId == getVendorId() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'vendorDeliveryNote', 'shipmentNotes', 'updatedAt']) &&
-          request.resource.data.status in ['Vendor Confirmed', 'Shipped / In Progress', 'Delivered']
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "vendorDeliveryNote", "shipmentNotes", "updatedAt"
+          ]) &&
+          request.resource.data.status in ["Vendor Confirmed", "Shipped / In Progress", "Delivered"]
         )
       );
-      allow delete: if isMainAdmin();
+      allow delete: if isMain();
     }
 
-    // =========================================================================
-    // 10. VENDORS COLLECTION
-    // =========================================================================
     match /vendors/{vendorId} {
-      allow read: if isActiveUser();
-      allow write: if hasPerm('vendors') || hasPerm('procurement');
+      allow get, list: if activeUser();
+      allow create, update, delete: if hasPerm("vendors") || hasPerm("procurement");
     }
 
-    // =========================================================================
-    // 11. GOODS RECEIPTS COLLECTION (Penerimaan Barang)
-    // =========================================================================
     match /goodsReceipts/{grId} {
-      allow read: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow get, list: if activeUser() && (
+        hasPerm("procurement") ||
         (hasVendorId() && resource.data.vendorId == getVendorId())
       );
-      allow create: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow create: if activeUser() && (
+        hasPerm("procurement") ||
         (hasVendorId() && request.resource.data.vendorId == getVendorId())
       );
-      allow update, delete: if hasPerm('procurement');
+      allow update, delete: if hasPerm("procurement");
     }
 
-    // =========================================================================
-    // 12. DOCUMENT ARCHIVE COLLECTION (Surat Jalan / Invoice)
-    // =========================================================================
     match /documentArchive/{docId} {
-      allow read: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow get, list: if activeUser() && (
+        hasPerm("procurement") ||
         (hasVendorId() && resource.data.vendorId == getVendorId()) ||
         resource.data.uploaderUid == request.auth.uid
       );
-      allow create: if isActiveUser() && (
-        hasPerm('procurement') ||
+      allow create: if activeUser() && (
+        hasPerm("procurement") ||
         (hasVendorId() && request.resource.data.vendorId == getVendorId()) ||
         request.resource.data.uploaderUid == request.auth.uid
       );
-      allow update, delete: if hasPerm('procurement');
+      allow update, delete: if hasPerm("procurement");
     }
 
-    // =========================================================================
-    // 13. MOTIVATIONAL QUOTES COLLECTION
-    // =========================================================================
     match /motivationalQuotes/{quoteId} {
-      allow read: if isActiveUser();
-      allow write: if isMainAdmin();
+      allow get, list: if activeUser();
+      allow create, update, delete: if isMain();
     }
 
-    // =========================================================================
-    // 14. ANNOUNCEMENTS COLLECTION
-    // =========================================================================
     match /announcements/{announcementId} {
-      allow read: if isActiveUser();
-      allow write: if isMainAdmin() || hasPerm('procurement') || hasPerm('requests');
+      allow get, list: if activeUser();
+      allow create, update, delete: if isMain() || hasPerm("procurement") || hasPerm("requests");
     }
 
-    // =========================================================================
-    // 15. ASSETS MASTER COLLECTION
-    // =========================================================================
-    match /assets/{assetId} {
-      allow read: if isActiveUser();
-      allow write: if hasPerm('assets');
-    }
-
-    // =========================================================================
-    // 16. ACCESS REQUESTS COLLECTION
-    // =========================================================================
-    match /accessRequests/{reqId} {
-      allow read: if isMainAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if isMainAdmin();
-    }
-
-    // =========================================================================
-    // 17. SYSTEM SETTINGS COLLECTION (e.g. settings/handoverSlots, settings/poConfig)
-    // =========================================================================
-    match /settings/{settingId} {
-      allow read: if isActiveUser();
-      allow write: if isMainAdmin() || hasPerm('procurement');
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
