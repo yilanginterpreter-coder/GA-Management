@@ -1,4 +1,5 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
+import { hasPerm } from "./perms.js";
 
 import {
   doc,
@@ -20,11 +21,13 @@ let transactions = [];
 let busy = false;
 let ready = false;
 let activeRole = null;
+let activeProfile = null;
 let inventorySearchTerm = "";
 let authGeneration = 0;
 
 const canWrite = () =>
-  ["main_admin", "ga_admin"].includes(activeRole);
+  ["main_admin", "ga_admin"].includes(activeRole) &&
+  hasPerm(activeProfile, "inventory");
 
 const html = value =>
   String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -1254,6 +1257,7 @@ onAuthStateChanged(auth, async user => {
   inventory = [];
   transactions = [];
   activeRole = null;
+  activeProfile = null;
 
   draw();
 
@@ -1279,6 +1283,7 @@ onAuthStateChanged(auth, async user => {
     }
 
     activeRole = profile.data().role;
+    activeProfile = profile.data();
 
     // Karyawan tidak membaca transaksi stok; modul ini hanya untuk staf GA.
     if (!["main_admin", "ga_admin", "admin_operational"].includes(activeRole)) {
