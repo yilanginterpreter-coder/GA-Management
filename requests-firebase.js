@@ -246,13 +246,19 @@ function cardHTML(item) {
     : `<i class="fa-solid fa-box"></i>`;
 
   return `
-    <button type="button" class="catalog-card" data-item-id="${esc(item.id)}" ${out ? "disabled" : ""}>
+    <div class="catalog-card" data-item-id="${esc(item.id)}">
       <span class="catalog-photo">${photo}</span>
       <span class="catalog-name">${esc(item.name)}</span>
       ${item.specification ? `<span class="catalog-spec">${esc(item.specification)}</span>` : ""}
       <span class="catalog-meta">${esc(item.code)} · ${esc(item.category)}</span>
       <span class="catalog-stock ${stockClass}">${esc(stockText)}</span>
-    </button>`;
+      <div style="margin-top: 8px; width: 100%;">
+        ${out
+          ? `<button type="button" class="secondary-button small" style="width: 100%; border-color: #eab308; color: #854d0e;" data-pr-item="${esc(item.id)}"><i class="fa-solid fa-file-invoice"></i> Ajukan Pembelian (PR)</button>`
+          : `<button type="button" class="primary-button small" style="width: 100%;" data-order-item="${esc(item.id)}"><i class="fa-solid fa-cart-plus"></i> Ajukan Permintaan</button>`
+        }
+      </div>
+    </div>`;
 }
 
 function renderCatalog() {
@@ -793,9 +799,66 @@ $("catalogSearch")?.addEventListener("input", event => {
 });
 
 $("catalogGrid")?.addEventListener("click", event => {
-  const card = event.target.closest(".catalog-card");
-  if (card && !card.disabled) openOrder(card.dataset.itemId);
+  const orderBtn = event.target.closest("[data-order-item]");
+  const prBtn = event.target.closest("[data-pr-item]");
+
+  if (orderBtn) {
+    openOrder(orderBtn.dataset.orderItem);
+  } else if (prBtn) {
+    const item = items.find(i => i.id === prBtn.dataset.prItem);
+    openPrForm(item);
+  }
 });
+
+async function openPrForm(preselectedItem = null) {
+  if (!user || !profile) return message("Silakan login terlebih dahulu.");
+
+  const today = localDate();
+  const autoPrNo = `PR-GA-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  openModal(
+    "Ajukan Requisisi Pembelian (PR)",
+    field("Nomor Requisisi (Auto)", `<input name="prNo" value="${esc(autoPrNo)}" readonly style="background:#F1F5F9;">`) +
+    field("Departemen *", `<input name="department" value="${esc(profile.department || "")}" required>`, false) +
+    field("Nama & Jabatan Atasan Supervisor *", `<input name="supervisorInfo" placeholder="Nama / Jabatan Supervisor" required>`, false) +
+    field("Lokasi Kerja & PIC Penanggung Jawab *", `<input name="workLocation" placeholder="Gudang Utama / PIC Bpk. Budi" required>`) +
+    field("Jumlah Pengguna Barang *", `<input name="userCount" type="number" min="1" value="1" required>`, false) +
+    field("Barang yang Diminta *", `<input name="itemName" value="${esc(preselectedItem ? preselectedItem.name : "")}" placeholder="Nama barang / spesifikasi" required>`, false) +
+    field("Jumlah *", `<input name="quantity" type="number" min="1" value="1" required>`, false) +
+    field("Satuan *", `<input name="unit" value="${esc(preselectedItem ? preselectedItem.unit : "Unit")}" required>`, false) +
+    field("Tanggal Dibutuhkan *", `<input name="neededDate" type="date" min="${today}" value="${today}" required>`) +
+    field("Justifikasi Kebutuhan Bisnis *", `<textarea name="justification" maxlength="500" required placeholder="Jelaskan alasan pembelian barang ini..."></textarea>`),
+    "Kirim Requisisi (PR)",
+    async data => {
+      const prRef = doc(db, "procurementRequisitions", autoPrNo);
+      await setDoc(prRef, {
+        prNo: autoPrNo,
+        requesterUid: user.uid,
+        requesterName: profile.name,
+        department: data.department,
+        supervisorInfo: data.supervisorInfo,
+        workLocation: data.workLocation,
+        userCount: Number(data.userCount),
+        items: [{
+          itemId: preselectedItem ? preselectedItem.id : null,
+          itemName: data.itemName,
+          quantity: Number(data.quantity),
+          unit: data.unit
+        }],
+        neededDate: data.neededDate,
+        justification: data.justification,
+        status: "Draft",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      setTab("requests");
+      return `Requisisi Pembelian ${autoPrNo} berhasil dibuat (Status: Draft / Awaiting Approval).`;
+    }
+  );
+}
+
+window.openPrForm = openPrForm;
 
 $("requestFilter")?.addEventListener("change", event => {
   statusFilter = event.target.value;

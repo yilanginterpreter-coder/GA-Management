@@ -4,6 +4,7 @@
 export const MENUS = {
   inventory: "Stok In & Stok Out",
   requests: "Permintaan Karyawan",
+  procurement: "Pengadaan & Arsip PO",
   assets: "Aset Perusahaan",
   vehicles: "Kendaraan",
   repairs: "Fasilitas & Perbaikan",
@@ -15,9 +16,10 @@ export const MENUS = {
 export const MENU_KEYS = Object.keys(MENUS);
 
 // Bawaan GA Admin sebelum Main Admin mengatur hak akses sendiri.
-const DEFAULT_GA_ADMIN = ["inventory", "requests", "repairs"];
+const DEFAULT_GA_ADMIN = ["inventory", "requests", "procurement", "repairs"];
 
 export const ADMIN_ROLES = ["ga_admin", "admin_operational"];
+export const ALL_ROLES = ["main_admin", "ga_admin", "admin_operational", "employee", "vendor"];
 
 export function hasPerm(profile, key) {
   if (!profile) return false;

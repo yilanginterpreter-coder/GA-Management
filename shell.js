@@ -40,6 +40,7 @@ const BELL_REFRESH_MS = 60000;
 // Kotak menu di beranda (admin). "page" = halaman tujuan.
 const STAFF_TILES = [
   { id: "inventory", perm: ["inventory", "requests"], gate: "inventory", page: "inventory-hub", label: "Inventory & Stok", zh: "出入库", icon: "fa-box" },
+  { id: "procurement", perm: ["procurement"], gate: "procurement", page: "procurement", label: "Pengadaan & Arsip PO", zh: "采购与归档", icon: "fa-file-contract" },
   { id: "assets", perm: ["assets"], gate: "assets", page: "assets", label: "Aset Perusahaan", zh: "公司资产", icon: "fa-laptop" },
   { id: "vehicles", perm: ["vehicles"], gate: "vehicles", page: "vehicles", label: "Kendaraan", zh: "车辆", icon: "fa-car" },
   { id: "repairs", perm: ["repairs"], gate: "repairs", page: "repairs", label: "Fasilitas & Perbaikan", zh: "维修设施", icon: "fa-screwdriver-wrench" },
@@ -262,6 +263,65 @@ function tileHTML(tile, locked, index, group) {
     </button>`;
 }
 
+async function renderEmployeeHomeWidget() {
+  const widget = $("employeeWelcomeWidget");
+  if (!widget) return;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("id-ID", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  let quoteText = "Tetap semangat dan berikan yang terbaik untuk setiap pekerjaan hari ini.";
+  let quoteAuthor = "GA Management";
+
+  try {
+    const qSnap = await getDocs(query(collection(db, "motivationalQuotes"), where("active", "==", true)));
+    if (!qSnap.empty) {
+      const quotes = qSnap.docs.map(d => d.data());
+      const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+      const selected = quotes[dayOfYear % quotes.length];
+      if (selected?.quote) {
+        quoteText = selected.quote;
+        quoteAuthor = selected.author || "Anonim";
+      }
+    }
+  } catch (err) {
+    console.warn("Could not load quotes:", err);
+  }
+
+  let announcementsHTML = "";
+  try {
+    const aSnap = await getDocs(query(collection(db, "announcements"), where("active", "==", true)));
+    if (!aSnap.empty) {
+      const anns = aSnap.docs.map(d => d.data());
+      announcementsHTML = `
+        <div style="margin-top: 15px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
+          <strong style="color: #A3E635; display:block; margin-bottom: 4px;"><i class="fa-solid fa-bullhorn"></i> Pengumuman GA:</strong>
+          ${anns.slice(0, 2).map(a => `<div style="font-size: 0.85rem; margin-top: 4px;"><strong>${esc(a.title)}:</strong> ${esc(a.content)}</div>`).join("")}
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.warn("Could not load announcements:", err);
+  }
+
+  widget.innerHTML = `
+    <div class="employee-welcome-card">
+      <div class="greeting-title">Selamat Datang, ${esc(profile?.name || "Karyawan")}!</div>
+      <div class="greeting-date"><i class="fa-regular fa-calendar-days"></i> ${esc(dateStr)}</div>
+      <div class="employee-quote-box">
+        "${esc(quoteText)}"
+        <small>— ${esc(quoteAuthor)}</small>
+      </div>
+      ${announcementsHTML}
+    </div>
+  `;
+}
+
 function renderHome() {
   const grid = $("tileGrid");
   const title = $("homeTitle");
@@ -272,6 +332,20 @@ function renderHome() {
     return;
   }
 
+  const welcomeWidget = $("employeeWelcomeWidget");
+  const bottomNav = $("mobileBottomNav");
+
+  if (profile.role === "employee" || profile.role === "vendor") {
+    if (bottomNav) bottomNav.hidden = false;
+    if (welcomeWidget) {
+      welcomeWidget.hidden = false;
+      renderEmployeeHomeWidget();
+    }
+  } else {
+    if (bottomNav) bottomNav.hidden = true;
+    if (welcomeWidget) welcomeWidget.hidden = true;
+  }
+
   if (isStaff()) {
     if (title) {
       title.textContent = isMain() ? "MENU MAIN ADMIN" : "MENU ADMIN GA";
@@ -280,8 +354,17 @@ function renderHome() {
       const allowed = tile.perm.some(can);
       return tileHTML(tile, !allowed, i, "staff");
     }).join("");
+  } else if (profile.role === "vendor") {
+    if (title) title.textContent = "MENU VENDOR PORTAL";
+    grid.innerHTML = `
+      <button type="button" class="tile" data-group="vendor" data-index="0">
+        <i class="fa-solid fa-store tile-icon" aria-hidden="true"></i>
+        <strong>Vendor Portal</strong>
+        <small>Daftar PO & Katalog Vendor</small>
+      </button>
+    `;
   } else {
-    if (title) title.textContent = "MENU KARYAWAN";
+    if (title) title.textContent = "Layanan Karyawan";
     grid.innerHTML = EMPLOYEE_TILES.map((tile, i) =>
       tileHTML(tile, false, i, "employee")
     ).join("");
@@ -309,6 +392,10 @@ function onTileClick(event) {
   if (group === "hub") {
     const tile = HUB_TILES[index];
     return openGuarded(tile.gate, tile.page);
+  }
+
+  if (group === "vendor") {
+    return goto("vendor-portal");
   }
 
   const tile = STAFF_TILES[index];
@@ -495,12 +582,131 @@ function openProfile() {
 
 /* ---------- Halaman Pengaturan & Pengguna Akses ---------- */
 
-function renderSettingsPage() {
-  const manage =
-    ["main_admin", "ga_admin"].includes(profile?.role) && can("requests");
-  const panel = $("handoverSettingsPanel");
-  if (panel) panel.hidden = !manage;
-  if ($("settingsEmpty")) $("settingsEmpty").hidden = manage;
+async function renderSettingsPage() {
+  const manage = ["main_admin", "ga_admin"].includes(profile?.role) && can("requests");
+  const isMainAdmin = profile?.role === "main_admin";
+
+  const handoverPanel = $("handoverSettingsPanel");
+  if (handoverPanel) handoverPanel.hidden = !manage;
+
+  const quotesPanel = $("quotesSettingsPanel");
+  if (quotesPanel) quotesPanel.hidden = !isMainAdmin;
+
+  const announcementsPanel = $("announcementsSettingsPanel");
+  if (announcementsPanel) announcementsPanel.hidden = !manage;
+
+  const poConfigPanel = $("poConfigSettingsPanel");
+  if (poConfigPanel) poConfigPanel.hidden = !isMainAdmin;
+
+  const vendorMappingPanel = $("vendorMappingPanel");
+  if (vendorMappingPanel) vendorMappingPanel.hidden = !isMainAdmin;
+
+  const hasAnySettings = manage || isMainAdmin;
+  if ($("settingsEmpty")) $("settingsEmpty").hidden = hasAnySettings;
+
+  if (isMainAdmin) {
+    loadQuotesSettings();
+    loadPoConfigSettings();
+    loadVendorMappingSettings();
+  }
+  if (manage) {
+    loadAnnouncementsSettings();
+  }
+}
+
+async function loadQuotesSettings() {
+  const table = $("quotesTable");
+  if (!table) return;
+  try {
+    const snap = await getDocs(collection(db, "motivationalQuotes"));
+    const quotes = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    table.innerHTML = quotes.length ? quotes.map(q => `
+      <tr>
+        <td>${esc(q.quote || "-")}</td>
+        <td>${esc(q.author || "Anonim")}</td>
+        <td><span class="status-badge ${q.active !== false ? "" : "neutral"}">${q.active !== false ? "Aktif" : "Nonaktif"}</span></td>
+        <td>
+          <button type="button" class="small-action" data-quote-toggle="${esc(q.id)}" data-active="${q.active !== false}">
+            ${q.active !== false ? "Nonaktifkan" : "Aktifkan"}
+          </button>
+        </td>
+      </tr>
+    `).join("") : `<tr><td colspan="4" class="empty-cell">Belum ada kata motivasi. Silakan tambah baru.</td></tr>`;
+  } catch (err) {
+    console.error("Gagal load quote settings:", err);
+    table.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat quote.</td></tr>`;
+  }
+}
+
+async function loadAnnouncementsSettings() {
+  const table = $("announcementsTable");
+  if (!table) return;
+  try {
+    const snap = await getDocs(collection(db, "announcements"));
+    const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    table.innerHTML = list.length ? list.map(a => `
+      <tr>
+        <td><strong>${esc(a.title || "-")}</strong><br><small>${esc(a.content || "")}</small></td>
+        <td>${esc(a.category || "Umum")}</td>
+        <td>${esc(a.date || "-")}</td>
+        <td><span class="status-badge ${a.active !== false ? "" : "neutral"}">${a.active !== false ? "Aktif" : "Arsip"}</span></td>
+        <td>
+          <button type="button" class="small-action" data-ann-toggle="${esc(a.id)}" data-active="${a.active !== false}">
+            ${a.active !== false ? "Arsipkan" : "Aktifkan"}
+          </button>
+        </td>
+      </tr>
+    `).join("") : `<tr><td colspan="5" class="empty-cell">Belum ada pengumuman GA.</td></tr>`;
+  } catch (err) {
+    console.error("Gagal load announcements:", err);
+    table.innerHTML = `<tr><td colspan="5" class="empty-cell">Gagal memuat pengumuman.</td></tr>`;
+  }
+}
+
+async function loadPoConfigSettings() {
+  try {
+    const snap = await getDoc(doc(db, "settings", "poConfig"));
+    if (snap.exists()) {
+      const data = snap.data();
+      if ($("prPrefixInput")) $("prPrefixInput").value = data.prPrefix || "PR-GA-{YYYY}{MM}-";
+      if ($("poPrefixInput")) $("poPrefixInput").value = data.poPrefix || "PO-GA-{YYYY}{MM}-";
+    }
+  } catch (err) {
+    console.error("Gagal load PO config:", err);
+  }
+}
+
+async function loadVendorMappingSettings() {
+  const table = $("vendorMappingTable");
+  if (!table) return;
+  try {
+    const [usersSnap, vendorsSnap] = await Promise.all([
+      getDocs(query(collection(db, "users"), where("role", "==", "vendor"))),
+      getDocs(collection(db, "vendors"))
+    ]);
+
+    const vendorUsers = usersSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+    const vendorsList = vendorsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+    table.innerHTML = vendorUsers.length ? vendorUsers.map(u => {
+      const linked = vendorsList.find(v => v.id === u.vendorId || v.uid === u.id);
+      return `
+        <tr>
+          <td><strong>${esc(u.name || "-")}</strong><br><small>${esc(u.email || "-")}</small></td>
+          <td>${linked ? esc(linked.name || linked.companyName || "-") : "<em>Belum terhubung</em>"}</td>
+          <td><span class="status-badge ${linked ? "" : "warning"}">${linked ? "Terhubung" : "Perlu Link"}</span></td>
+          <td>
+            <button type="button" class="small-action" data-map-vendor="${esc(u.id)}">
+              ${linked ? "Ubah Link Vendor" : "Hubungkan Vendor"}
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join("") : `<tr><td colspan="4" class="empty-cell">Belum ada akun pengguna dengan role Vendor.</td></tr>`;
+  } catch (err) {
+    console.error("Gagal load vendor mapping:", err);
+    table.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat pemetaan vendor.</td></tr>`;
+  }
 }
 
 function permBadges(target) {
@@ -938,6 +1144,20 @@ $("backButton")?.addEventListener("click", () => {
 $("bellButton")?.addEventListener("click", event => {
   event.stopPropagation();
   goto("notifications");
+});
+
+document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#mobileBottomNav .nav-item").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const nav = btn.dataset.nav;
+    if (nav === "home") goto("home");
+    else if (nav === "requests") goto("requests");
+    else if (nav === "repairs") goto("repairs");
+    else if (nav === "vehicles") goto("vehicles");
+    else if (nav === "history") goto("requests");
+    else if (nav === "profile") openProfile();
+  });
 });
 
 document.querySelectorAll("[data-notif-filter]").forEach(btn => {
