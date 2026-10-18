@@ -1,4 +1,5 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
+import { hasPerm } from "./perms.js";
 
 import {
   collection,
@@ -37,7 +38,10 @@ let busy = false;
 let generation = 0;
 
 const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
-const canManage = () => !!profile && MANAGER_ROLES.includes(profile.role);
+const canManage = () =>
+  !!profile && MANAGER_ROLES.includes(profile.role) && hasPerm(profile, "requests");
+// Serah-terima mengurangi stok, jadi butuh hak Stok juga.
+const canHandover = () => canManage() && hasPerm(profile, "inventory");
 
 const esc = value =>
   String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -186,6 +190,7 @@ function openModal(title, bodyHTML, submitLabel, onSubmit) {
       const result = await onSubmit(data);
       closeModal();
       message(result || "Berhasil disimpan.");
+      document.dispatchEvent(new Event("ga:data-changed"));
       await Promise.all([load(), loadItems(true)]);
     } catch (error) {
       console.error("Permintaan gagal:", error);
@@ -402,7 +407,7 @@ function rowHTML(r) {
     );
   }
 
-  if (canManage() && r.status === "Disetujui") {
+  if (canHandover() && r.status === "Disetujui") {
     actions.push(
       `<button type="button" class="small-action" data-action="handover" data-id="${esc(r.id)}">Serahkan</button>`
     );
