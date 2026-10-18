@@ -181,7 +181,7 @@ function showProfile(name, role) {
   if (nameEl) nameEl.textContent = displayName;
   if (roleEl) roleEl.textContent = ROLE_LABELS[role] || "";
 
-  document.querySelectorAll(".avatar, .top-avatar").forEach((el) => {
+  document.querySelectorAll(".avatar").forEach((el) => {
     el.textContent = initials || "GA";
   });
 }
@@ -193,26 +193,7 @@ function showApp(role, name) {
   document.body.dataset.userRole = role;
   showProfile(name, role);
 
-  const allowedAttribute =
-    role === "employee" ? "data-employee-allowed" : "data-ga-admin-allowed";
-
-  document.querySelectorAll(".nav-link").forEach((menu) => {
-    if (role === "main_admin") {
-      menu.hidden = false;
-    } else {
-      menu.hidden = !menu.hasAttribute(allowedAttribute);
-    }
-  });
-
-  // Karyawan langsung masuk ke halaman Permintaan Barang.
-  if (role === "employee" && typeof window.showPage === "function") {
-    const home = document.querySelector(".nav-link[data-employee-allowed]");
-    window.showPage("requests", home);
-  }
-  document.querySelectorAll("[data-main-admin-only]").forEach((menu) => {
-    menu.hidden = role !== "main_admin";
-  });
-
+  // Tampilan menu diatur oleh shell.js (kotak menu + hak akses).
   showMessage("");
 }
 function validRole(role) {
