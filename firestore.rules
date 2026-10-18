@@ -1,0 +1,192 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return isAuthenticated() && getUserData().active == true;
+    }
+
+    function isMainAdmin() {
+      return isActive() && getUserData().role == 'main_admin';
+    }
+
+    function isEmployee() {
+      return isActive() && getUserData().role == 'employee';
+    }
+
+    function isVendor() {
+      return isActive() && getUserData().role == 'vendor';
+    }
+
+    function isStaff() {
+      return isActive() && (
+        getUserData().role == 'main_admin' ||
+        getUserData().role == 'ga_admin' ||
+        getUserData().role == 'admin_operational'
+      );
+    }
+
+    function hasPerm(menuKey) {
+      return isActive() && (
+        getUserData().role == 'main_admin' ||
+        (
+          (getUserData().role == 'ga_admin' || getUserData().role == 'admin_operational') &&
+          (
+            (getUserData().permissions != null && getUserData().permissions[menuKey] == true) ||
+            (getUserData().permissions == null && getUserData().role == 'ga_admin' && menuKey in ['inventory', 'requests', 'procurement', 'repairs'])
+          )
+        )
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isMainAdmin() || request.auth.uid == userId;
+    }
+
+    // Motivational Quotes
+    match /motivationalQuotes/{quoteId} {
+      allow read: if isAuthenticated();
+      allow write: if isMainAdmin();
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow write: if isMainAdmin() || hasPerm('procurement') || hasPerm('requests');
+    }
+
+    // Inventory
+    match /inventory/{itemId} {
+      allow read: if isActive();
+      allow write: if hasPerm('inventory');
+    }
+
+    // Stock Transactions
+    match /stockTransactions/{txId} {
+      allow read: if isActive();
+      allow write: if hasPerm('inventory');
+    }
+
+    // Service Requests (Permintaan Barang)
+    match /serviceRequests/{reqId} {
+      allow read: if isActive() && (
+        hasPerm('requests') ||
+        resource.data.requesterUid == request.auth.uid
+      );
+      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActive() && (
+        hasPerm('requests') ||
+        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Pending')
+      );
+      allow delete: if hasPerm('requests');
+    }
+
+    // Repair Requests (Lapor Perbaikan)
+    match /repairRequests/{repId} {
+      allow read: if isActive() && (
+        hasPerm('repairs') ||
+        resource.data.requesterUid == request.auth.uid
+      );
+      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActive() && (
+        hasPerm('repairs') ||
+        (resource.data.requesterUid == request.auth.uid && resource.data.status in ['Melapor', 'Pending'])
+      );
+      allow delete: if hasPerm('repairs');
+    }
+
+    // Vehicle Requests (Permintaan Kendaraan)
+    match /vehicleRequests/{vReqId} {
+      allow read: if isActive() && (
+        hasPerm('vehicles') ||
+        resource.data.requesterUid == request.auth.uid
+      );
+      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActive() && (
+        hasPerm('vehicles') ||
+        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Pending')
+      );
+      allow delete: if hasPerm('vehicles');
+    }
+
+    // Vehicles Fleet Master
+    match /vehicles/{vehicleId} {
+      allow read: if isActive();
+      allow write: if hasPerm('vehicles');
+    }
+
+    // Procurement Requisitions (PR)
+    match /procurementRequisitions/{prId} {
+      allow read: if isActive() && (
+        hasPerm('procurement') ||
+        resource.data.requesterUid == request.auth.uid
+      );
+      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActive() && (
+        hasPerm('procurement') ||
+        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Diajukan')
+      );
+      allow delete: if hasPerm('procurement');
+    }
+
+    // Purchase Orders (PO)
+    match /purchaseOrders/{poId} {
+      allow read: if isActive() && (
+        hasPerm('procurement') ||
+        (isVendor() && resource.data.vendorUid == request.auth.uid) ||
+        resource.data.requesterUid == request.auth.uid
+      );
+      allow create, update, delete: if hasPerm('procurement');
+    }
+
+    // Vendors Master
+    match /vendors/{vendorId} {
+      allow read: if isActive();
+      allow write: if hasPerm('vendors') || hasPerm('procurement');
+    }
+
+    // Goods Receipts (Penerimaan Barang)
+    match /goodsReceipts/{grId} {
+      allow read: if isActive() && (
+        hasPerm('procurement') ||
+        (isVendor() && resource.data.vendorUid == request.auth.uid)
+      );
+      allow create: if hasPerm('procurement') || (isVendor() && request.resource.data.vendorUid == request.auth.uid);
+      allow update, delete: if hasPerm('procurement');
+    }
+
+    // Document Archive (Arsip Surat Jalan / Invoice / Dokumen GA)
+    match /documentArchive/{docId} {
+      allow read: if isActive() && (
+        hasPerm('procurement') ||
+        (isVendor() && resource.data.vendorUid == request.auth.uid) ||
+        resource.data.uploaderUid == request.auth.uid
+      );
+      allow create: if isActive();
+      allow update, delete: if hasPerm('procurement') || isMainAdmin();
+    }
+
+    // System Settings & Configs (e.g., settings/poConfig)
+    match /settings/{settingId} {
+      allow read: if isActive();
+      allow write: if isMainAdmin() || hasPerm('procurement');
+    }
+
+    // Assets Master
+    match /assets/{assetId} {
+      allow read: if isActive();
+      allow write: if hasPerm('assets');
+    }
+  }
+}
