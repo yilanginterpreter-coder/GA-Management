@@ -364,6 +364,35 @@
         <div class="stats"><article class="stat-card"><span>Jenis Barang</span><h2 id="reportItems">0</h2></article><article class="stat-card"><span>Total Unit Stok</span><h2 id="reportStock">0</h2></article><article class="stat-card"><span>Total Aset</span><h2 id="reportAssets">0</h2></article><article class="stat-card"><span>Total Transaksi</span><h2 id="reportTransactions">0</h2></article></div>
         <article class="panel"><div class="panel-heading"><div><h3>Catatan</h3><p>Gunakan tabel inventaris dan riwayat transaksi untuk memeriksa data.</p></div></div><p class="report-note">Pastikan setiap barang masuk dan keluar dicatat agar jumlah stok tetap akurat.</p></article>
       </section>
+      <section class="page" id="page-history">
+        <div class="page-header">
+          <h2>Riwayat Pengajuan Karyawan</h2>
+          <p>Daftar seluruh riwayat pengajuan barang, laporan perbaikan, dan kendaraan Anda.</p>
+        </div>
+        <div class="filter-bar" style="margin-bottom: 16px; display: flex; gap: 8px;">
+          <button type="button" class="secondary-button active" data-history-filter="all">Semua</button>
+          <button type="button" class="secondary-button" data-history-filter="service">Barang</button>
+          <button type="button" class="secondary-button" data-history-filter="procurement">Pembelian (PR)</button>
+          <button type="button" class="secondary-button" data-history-filter="repair">Perbaikan</button>
+          <button type="button" class="secondary-button" data-history-filter="vehicle">Kendaraan</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Kategori / Jenis</th>
+                <th>Rincian</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="employeeHistoryTable">
+              <tr><td colspan="4" class="empty-cell">Memuat riwayat...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="page" id="page-notifications">
         <div class="page-heading">
           <div>
@@ -396,29 +425,25 @@
     </div>
   </main>
 
-  <nav class="mobile-bottom-nav" id="mobileBottomNav" hidden>
-    <button type="button" class="nav-item active" data-nav="home">
-      <i class="fa-solid fa-house"></i>
-      <span>Beranda</span>
-    </button>
-    <button type="button" class="nav-item" data-nav="requests">
-      <i class="fa-solid fa-boxes-stacked"></i>
-      <span>Permintaan</span>
+  <nav class="employee-nav-bar mobile-bottom-nav" id="mobileBottomNav" hidden>
+    <button type="button" class="nav-item active" data-nav="requests">
+      <i class="fa-solid fa-boxes-packing"></i>
+      <span>Permintaan Barang</span>
     </button>
     <button type="button" class="nav-item" data-nav="repairs">
       <i class="fa-solid fa-screwdriver-wrench"></i>
-      <span>Perbaikan</span>
+      <span>Lapor Perbaikan</span>
     </button>
     <button type="button" class="nav-item" data-nav="vehicles">
       <i class="fa-solid fa-car"></i>
-      <span>Kendaraan</span>
+      <span>Permintaan Kendaraan</span>
     </button>
     <button type="button" class="nav-item" data-nav="history">
       <i class="fa-solid fa-clock-rotate-left"></i>
       <span>Riwayat</span>
     </button>
     <button type="button" class="nav-item" data-nav="profile">
-      <i class="fa-regular fa-user"></i>
+      <i class="fa-solid fa-user"></i>
       <span>Profil</span>
     </button>
   </nav>

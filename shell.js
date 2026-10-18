@@ -173,6 +173,7 @@ function goto(page) {
   if (page === "users") renderUsersPage();
   if (page === "settings") renderSettingsPage();
   if (page === "notifications") renderNotificationsPage();
+  if (page === "history") renderEmployeeHistory();
 
   if (typeof window.renderAll === "function") {
     try { window.renderAll(); } catch (error) { console.error(error); }
@@ -261,6 +262,105 @@ function tileHTML(tile, locked, index, group) {
       <strong>${esc(tile.label)}</strong>
       <small>${esc(tile.zh || tile.sub || "")}</small>
     </button>`;
+}
+
+async function renderEmployeeHistory(filter = "all") {
+  const tbody = $("employeeHistoryTable");
+  if (!tbody || !user) return;
+
+  const uid = user.uid;
+  const results = await Promise.allSettled([
+    (filter === "all" || filter === "service") ? getDocs(query(collection(db, "serviceRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null),
+    (filter === "all" || filter === "procurement") ? getDocs(query(collection(db, "procurementRequisitions"), where("requesterUid", "==", uid))) : Promise.resolve(null),
+    (filter === "all" || filter === "repair") ? getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null),
+    (filter === "all" || filter === "vehicle") ? getDocs(query(collection(db, "vehicleRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null)
+  ]);
+
+  let list = [];
+  let hasError = false;
+
+  const [serviceRes, prRes, repairRes, vehicleRes] = results;
+
+  if (serviceRes.status === "fulfilled" && serviceRes.value) {
+    serviceRes.value.docs.forEach(d => {
+      const item = d.data();
+      list.push({
+        type: "Permintaan Barang",
+        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+        rawDate: seconds(item.createdAt),
+        desc: `${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
+        status: item.status || "Pending"
+      });
+    });
+  } else if (serviceRes.status === "rejected") {
+    console.warn("Gagal memuat serviceRequests:", serviceRes.reason);
+    hasError = true;
+  }
+
+  if (prRes.status === "fulfilled" && prRes.value) {
+    prRes.value.docs.forEach(d => {
+      const item = d.data();
+      list.push({
+        type: "Pembelian (PR)",
+        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+        rawDate: seconds(item.createdAt),
+        desc: `${item.prNo || "PR"} — ${item.itemName || item.title || "Pengadaan Barang"}`,
+        status: item.status || "Diajukan"
+      });
+    });
+  } else if (prRes.status === "rejected") {
+    console.warn("Gagal memuat procurementRequisitions:", prRes.reason);
+    hasError = true;
+  }
+
+  if (repairRes.status === "fulfilled" && repairRes.value) {
+    repairRes.value.docs.forEach(d => {
+      const item = d.data();
+      list.push({
+        type: "Lapor Perbaikan",
+        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+        rawDate: seconds(item.createdAt),
+        desc: `${item.category || "-"} — ${item.location || "-"}`,
+        status: item.status || "Pending"
+      });
+    });
+  } else if (repairRes.status === "rejected") {
+    console.warn("Gagal memuat repairRequests:", repairRes.reason);
+    hasError = true;
+  }
+
+  if (vehicleRes.status === "fulfilled" && vehicleRes.value) {
+    vehicleRes.value.docs.forEach(d => {
+      const item = d.data();
+      list.push({
+        type: "Permintaan Kendaraan",
+        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+        rawDate: seconds(item.createdAt),
+        desc: `${item.vehicleName || "Kendaraan Dinas"} — Tujuan: ${item.destination || "-"}`,
+        status: item.status || "Pending"
+      });
+    });
+  } else if (vehicleRes.status === "rejected") {
+    console.warn("Gagal memuat vehicleRequests:", vehicleRes.reason);
+    hasError = true;
+  }
+
+  list.sort((a, b) => b.rawDate - a.rawDate);
+
+  if (list.length > 0) {
+    tbody.innerHTML = list.map(item => `
+      <tr>
+        <td>${esc(item.date)}</td>
+        <td><strong>${esc(item.type)}</strong></td>
+        <td>${esc(item.desc)}</td>
+        <td><span class="status-badge">${esc(item.status)}</span></td>
+      </tr>
+    `).join("") + (hasError ? `<tr><td colspan="4" class="notice" style="text-align:center"><small><i class="fa-solid fa-triangle-exclamation"></i> Sebagian riwayat tidak dapat dimuat karena kendala izin atau koneksi.</small></td></tr>` : "");
+  } else if (hasError) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat sebagian riwayat. Pastikan firestore.rules mengizinkan akses.</td></tr>`;
+  } else {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Belum ada riwayat pengajuan.</td></tr>`;
+  }
 }
 
 async function renderEmployeeHomeWidget() {
