@@ -2,7 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // =========================================================================
+    // HELPER FUNCTIONS & AUTHENTICATION/AUTHORIZATION
+    // =========================================================================
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,182 +14,293 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function isActive() {
-      return isAuthenticated() && getUserData().active == true;
+    function userExists() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return userExists() && getUserData().active == true;
+    }
+
+    function getUserRole() {
+      return getUserData().role;
     }
 
     function isMainAdmin() {
-      return isActive() && getUserData().role == 'main_admin';
+      return isActiveUser() && getUserRole() == 'main_admin';
     }
 
-    function isEmployee() {
-      return isActive() && getUserData().role == 'employee';
+    function isVendorRole() {
+      return isActiveUser() && getUserRole() == 'vendor';
     }
 
-    function isVendor() {
-      return isActive() && getUserData().role == 'vendor';
+    function isEmployeeRole() {
+      return isActiveUser() && getUserRole() == 'employee';
     }
 
-    function isStaff() {
-      return isActive() && (
-        getUserData().role == 'main_admin' ||
-        getUserData().role == 'ga_admin' ||
-        getUserData().role == 'admin_operational'
-      );
+    function getVendorId() {
+      return getUserData().vendorId;
+    }
+
+    function hasVendorId() {
+      return isVendorRole() && ('vendorId' in getUserData()) && getUserData().vendorId != null && getUserData().vendorId != '';
     }
 
     function hasPerm(menuKey) {
-      return isActive() && (
-        getUserData().role == 'main_admin' ||
+      return isActiveUser() && (
+        getUserRole() == 'main_admin' ||
         (
-          (getUserData().role == 'ga_admin' || getUserData().role == 'admin_operational') &&
+          (getUserRole() == 'ga_admin' || getUserRole() == 'admin_operational') &&
           (
             (getUserData().permissions != null && getUserData().permissions[menuKey] == true) ||
-            (getUserData().permissions == null && getUserData().role == 'ga_admin' && menuKey in ['inventory', 'requests', 'procurement', 'repairs'])
+            (getUserData().permissions == null && getUserRole() == 'ga_admin' && menuKey in ['inventory', 'requests', 'procurement', 'repairs', 'assets', 'vendors', 'vehicles'])
           )
         )
       );
     }
 
-    // Users Collection
+    // Check if security-critical fields are modified on user document
+    function isModifyingUserSecurityFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'active', 'permissions', 'vendorId', 'email', 'id']);
+    }
+
+    // =========================================================================
+    // 1. USERS COLLECTION
+    // =========================================================================
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isMainAdmin() || request.auth.uid == userId;
-    }
-
-    // Motivational Quotes
-    match /motivationalQuotes/{quoteId} {
-      allow read: if isAuthenticated();
-      allow write: if isMainAdmin();
-    }
-
-    // Announcements
-    match /announcements/{announcementId} {
-      allow read: if isAuthenticated();
-      allow write: if isMainAdmin() || hasPerm('procurement') || hasPerm('requests');
-    }
-
-    // Inventory
-    match /inventory/{itemId} {
-      allow read: if isActive();
-      allow write: if hasPerm('inventory');
-    }
-
-    // Stock Transactions
-    match /stockTransactions/{txId} {
-      allow read: if isActive();
-      allow write: if hasPerm('inventory');
-    }
-
-    // Service Requests (Permintaan Barang)
-    match /serviceRequests/{reqId} {
-      allow read: if isActive() && (
-        hasPerm('requests') ||
-        resource.data.requesterUid == request.auth.uid
+      // Main admin can write any user document
+      allow create: if isMainAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.keys().hasAny(['role', 'active', 'permissions']));
+      allow update: if isMainAdmin() || (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        !isModifyingUserSecurityFields()
       );
-      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActive() && (
+      allow delete: if isMainAdmin();
+    }
+
+    // =========================================================================
+    // 2. INVENTORY COLLECTION
+    // =========================================================================
+    match /inventory/{itemId} {
+      allow read: if isActiveUser();
+      allow create, update: if hasPerm('inventory') &&
+        (!('photoData' in request.resource.data) ||
+          (request.resource.data.photoData is string &&
+           request.resource.data.photoData.size() <= 125000 &&
+           (request.resource.data.photoData == '' ||
+            request.resource.data.photoData.matches('^data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+$'))));
+      allow delete: if hasPerm('inventory');
+    }
+
+    // =========================================================================
+    // 3. TRANSACTIONS COLLECTION (Inventory Stock History)
+    // =========================================================================
+    match /transactions/{txId} {
+      allow read: if isActiveUser();
+      allow create: if hasPerm('inventory') || hasPerm('requests') || hasPerm('procurement');
+      allow update, delete: if isMainAdmin();
+    }
+
+    // =========================================================================
+    // 4. SERVICE REQUESTS COLLECTION (Permintaan Barang)
+    // =========================================================================
+    match /serviceRequests/{reqId} {
+      allow read: if isActiveUser() && (
         hasPerm('requests') ||
-        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Pending')
+        resource.data.requesterUid == request.auth.uid ||
+        resource.data.userUid == request.auth.uid
+      );
+      allow create: if isActiveUser() && (
+        request.resource.data.requesterUid == request.auth.uid ||
+        request.resource.data.userUid == request.auth.uid
+      );
+      allow update: if isActiveUser() && (
+        hasPerm('requests') ||
+        (
+          (resource.data.requesterUid == request.auth.uid || resource.data.userUid == request.auth.uid) &&
+          resource.data.status in ['Pending', 'Submitted'] &&
+          request.resource.data.status in ['Pending', 'Submitted', 'Canceled', 'Batal']
+        )
       );
       allow delete: if hasPerm('requests');
     }
 
-    // Repair Requests (Lapor Perbaikan)
+    // =========================================================================
+    // 5. REPAIR REQUESTS COLLECTION (Lapor Perbaikan)
+    // =========================================================================
     match /repairRequests/{repId} {
-      allow read: if isActive() && (
+      allow read: if isActiveUser() && (
         hasPerm('repairs') ||
-        resource.data.requesterUid == request.auth.uid
+        resource.data.requesterUid == request.auth.uid ||
+        resource.data.userUid == request.auth.uid
       );
-      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActive() && (
+      allow create: if isActiveUser() && (
+        request.resource.data.requesterUid == request.auth.uid ||
+        request.resource.data.userUid == request.auth.uid
+      );
+      allow update: if isActiveUser() && (
         hasPerm('repairs') ||
-        (resource.data.requesterUid == request.auth.uid && resource.data.status in ['Melapor', 'Pending'])
+        (
+          (resource.data.requesterUid == request.auth.uid || resource.data.userUid == request.auth.uid) &&
+          resource.data.status in ['Melapor', 'Pending'] &&
+          request.resource.data.status in ['Melapor', 'Pending', 'Canceled', 'Batal']
+        )
       );
       allow delete: if hasPerm('repairs');
     }
 
-    // Vehicle Requests (Permintaan Kendaraan)
+    // =========================================================================
+    // 6. VEHICLE REQUESTS COLLECTION (Permintaan Kendaraan)
+    // =========================================================================
     match /vehicleRequests/{vReqId} {
-      allow read: if isActive() && (
+      allow read: if isActiveUser() && (
         hasPerm('vehicles') ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActive() && (
+      allow create: if isActiveUser() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActiveUser() && (
         hasPerm('vehicles') ||
-        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Pending')
+        (
+          resource.data.requesterUid == request.auth.uid &&
+          resource.data.status == 'Pending' &&
+          request.resource.data.status in ['Pending', 'Canceled']
+        )
       );
       allow delete: if hasPerm('vehicles');
     }
 
-    // Vehicles Fleet Master
+    // =========================================================================
+    // 7. VEHICLES COLLECTION (Fleet Master)
+    // =========================================================================
     match /vehicles/{vehicleId} {
-      allow read: if isActive();
+      allow read: if isActiveUser();
       allow write: if hasPerm('vehicles');
     }
 
-    // Procurement Requisitions (PR)
+    // =========================================================================
+    // 8. PROCUREMENT REQUISITIONS COLLECTION (PR)
+    // =========================================================================
     match /procurementRequisitions/{prId} {
-      allow read: if isActive() && (
+      allow read: if isActiveUser() && (
         hasPerm('procurement') ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create: if isActive() && request.resource.data.requesterUid == request.auth.uid;
-      allow update: if isActive() && (
+      allow create: if isActiveUser() && request.resource.data.requesterUid == request.auth.uid;
+      allow update: if isActiveUser() && (
         hasPerm('procurement') ||
-        (resource.data.requesterUid == request.auth.uid && resource.data.status == 'Diajukan')
+        (
+          resource.data.requesterUid == request.auth.uid &&
+          resource.data.status in ['Diajukan', 'Pending'] &&
+          request.resource.data.status in ['Diajukan', 'Pending', 'Canceled']
+        )
       );
       allow delete: if hasPerm('procurement');
     }
 
-    // Purchase Orders (PO)
+    // =========================================================================
+    // 9. PURCHASE ORDERS COLLECTION (PO)
+    // =========================================================================
     match /purchaseOrders/{poId} {
-      allow read: if isActive() && (
+      // Vendors can only read POs matching their vendorId. Unassigned vendors cannot list/read.
+      allow read: if isActiveUser() && (
         hasPerm('procurement') ||
-        (isVendor() && resource.data.vendorUid == request.auth.uid) ||
+        (hasVendorId() && resource.data.vendorId == getVendorId()) ||
         resource.data.requesterUid == request.auth.uid
       );
-      allow create, update, delete: if hasPerm('procurement');
+      allow create: if hasPerm('procurement');
+      allow update: if isActiveUser() && (
+        hasPerm('procurement') ||
+        (
+          hasVendorId() &&
+          resource.data.vendorId == getVendorId() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'vendorNotes', 'updatedAt']) &&
+          request.resource.data.status in ['Diproses Vendor', 'Dikirim Vendor', 'Selesai']
+        )
+      );
+      allow delete: if isMainAdmin();
     }
 
-    // Vendors Master
+    // =========================================================================
+    // 10. VENDORS COLLECTION
+    // =========================================================================
     match /vendors/{vendorId} {
-      allow read: if isActive();
+      allow read: if isActiveUser();
       allow write: if hasPerm('vendors') || hasPerm('procurement');
     }
 
-    // Goods Receipts (Penerimaan Barang)
+    // =========================================================================
+    // 11. GOODS RECEIPTS COLLECTION (Penerimaan Barang)
+    // =========================================================================
     match /goodsReceipts/{grId} {
-      allow read: if isActive() && (
+      allow read: if isActiveUser() && (
         hasPerm('procurement') ||
-        (isVendor() && resource.data.vendorUid == request.auth.uid)
+        (hasVendorId() && resource.data.vendorId == getVendorId())
       );
-      allow create: if hasPerm('procurement') || (isVendor() && request.resource.data.vendorUid == request.auth.uid);
+      allow create: if isActiveUser() && (
+        hasPerm('procurement') ||
+        (hasVendorId() && request.resource.data.vendorId == getVendorId())
+      );
       allow update, delete: if hasPerm('procurement');
     }
 
-    // Document Archive (Arsip Surat Jalan / Invoice / Dokumen GA)
+    // =========================================================================
+    // 12. DOCUMENT ARCHIVE COLLECTION (Surat Jalan / Invoice)
+    // =========================================================================
     match /documentArchive/{docId} {
-      allow read: if isActive() && (
+      allow read: if isActiveUser() && (
         hasPerm('procurement') ||
-        (isVendor() && resource.data.vendorUid == request.auth.uid) ||
+        (hasVendorId() && resource.data.vendorId == getVendorId()) ||
         resource.data.uploaderUid == request.auth.uid
       );
-      allow create: if isActive();
-      allow update, delete: if hasPerm('procurement') || isMainAdmin();
+      allow create: if isActiveUser() && (
+        hasPerm('procurement') ||
+        (hasVendorId() && request.resource.data.vendorId == getVendorId()) ||
+        request.resource.data.uploaderUid == request.auth.uid
+      );
+      allow update, delete: if hasPerm('procurement');
     }
 
-    // System Settings & Configs (e.g., settings/poConfig)
-    match /settings/{settingId} {
-      allow read: if isActive();
-      allow write: if isMainAdmin() || hasPerm('procurement');
+    // =========================================================================
+    // 13. MOTIVATIONAL QUOTES COLLECTION
+    // =========================================================================
+    match /motivationalQuotes/{quoteId} {
+      allow read: if isActiveUser();
+      allow write: if isMainAdmin();
     }
 
-    // Assets Master
+    // =========================================================================
+    // 14. ANNOUNCEMENTS COLLECTION
+    // =========================================================================
+    match /announcements/{announcementId} {
+      allow read: if isActiveUser();
+      allow write: if isMainAdmin() || hasPerm('procurement') || hasPerm('requests');
+    }
+
+    // =========================================================================
+    // 15. ASSETS MASTER COLLECTION
+    // =========================================================================
     match /assets/{assetId} {
-      allow read: if isActive();
+      allow read: if isActiveUser();
       allow write: if hasPerm('assets');
+    }
+
+    // =========================================================================
+    // 16. ACCESS REQUESTS COLLECTION
+    // =========================================================================
+    match /accessRequests/{reqId} {
+      allow read: if isMainAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isMainAdmin();
+    }
+
+    // =========================================================================
+    // 17. SYSTEM SETTINGS COLLECTION (e.g. settings/handoverSlots, settings/poConfig)
+    // =========================================================================
+    match /settings/{settingId} {
+      allow read: if isActiveUser();
+      allow write: if isMainAdmin() || hasPerm('procurement');
     }
   }
 }

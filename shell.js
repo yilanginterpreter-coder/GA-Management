@@ -173,6 +173,7 @@ function goto(page) {
   if (page === "users") renderUsersPage();
   if (page === "settings") renderSettingsPage();
   if (page === "notifications") renderNotificationsPage();
+  if (page === "history") renderEmployeeHistory();
 
   if (typeof window.renderAll === "function") {
     try { window.renderAll(); } catch (error) { console.error(error); }
@@ -261,6 +262,77 @@ function tileHTML(tile, locked, index, group) {
       <strong>${esc(tile.label)}</strong>
       <small>${esc(tile.zh || tile.sub || "")}</small>
     </button>`;
+}
+
+async function renderEmployeeHistory(filter = "all") {
+  const tbody = $("employeeHistoryTable");
+  if (!tbody || !user) return;
+
+  try {
+    const uid = user.uid;
+    const [serviceSnap, repairSnap, vehicleSnap] = await Promise.all([
+      getDocs(query(collection(db, "serviceRequests"), where("requesterUid", "==", uid))),
+      getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid))),
+      getDocs(query(collection(db, "vehicleRequests"), where("requesterUid", "==", uid)))
+    ]);
+
+    let list = [];
+
+    if (filter === "all" || filter === "service") {
+      serviceSnap.docs.forEach(d => {
+        const item = d.data();
+        list.push({
+          type: "Permintaan Barang",
+          date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+          rawDate: seconds(item.createdAt),
+          desc: `${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
+          status: item.status || "Pending"
+        });
+      });
+    }
+
+    if (filter === "all" || filter === "repair") {
+      repairSnap.docs.forEach(d => {
+        const item = d.data();
+        list.push({
+          type: "Lapor Perbaikan",
+          date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+          rawDate: seconds(item.createdAt),
+          desc: `${item.category || "-"} — ${item.location || "-"}`,
+          status: item.status || "Pending"
+        });
+      });
+    }
+
+    if (filter === "all" || filter === "vehicle") {
+      vehicleSnap.docs.forEach(d => {
+        const item = d.data();
+        list.push({
+          type: "Permintaan Kendaraan",
+          date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+          rawDate: seconds(item.createdAt),
+          desc: `${item.vehicleName || "Kendaraan Dinas"} — Tujuan: ${item.destination || "-"}`,
+          status: item.status || "Pending"
+        });
+      });
+    }
+
+    list.sort((a, b) => b.rawDate - a.rawDate);
+
+    tbody.innerHTML = list.length
+      ? list.map(item => `
+        <tr>
+          <td>${esc(item.date)}</td>
+          <td><strong>${esc(item.type)}</strong></td>
+          <td>${esc(item.desc)}</td>
+          <td><span class="status-badge">${esc(item.status)}</span></td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4" class="empty-cell">Belum ada riwayat pengajuan.</td></tr>`;
+  } catch (err) {
+    console.error("Gagal memuat riwayat employee:", err);
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat riwayat.</td></tr>`;
+  }
 }
 
 async function renderEmployeeHomeWidget() {
