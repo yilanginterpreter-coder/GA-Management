@@ -274,6 +274,37 @@ footer span{padding:0 5px;color:var(--sage)}
 .tile .tile-count{position:absolute;top:10px;left:12px;background:#E5533F;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px}
 .home-note{max-width:900px;margin:0 auto;background:#E4ECE5;color:#35615f;border-radius:12px;padding:13px 16px;font-size:12px}
 .home-note i{margin-right:8px}
+
+/* Footer Beranda Admin */
+.admin-home-footer{max-width:900px;margin:32px auto 12px;padding:24px 20px 16px;text-align:center;border-top:1px solid rgba(71,123,121,.18);color:var(--text)}
+.admin-footer-title{font-size:13px;font-weight:700;color:var(--sage-dark);letter-spacing:.2px;margin-bottom:6px}
+.admin-footer-quote{font-size:12px;font-style:italic;color:var(--muted);margin-bottom:12px;line-height:1.5}
+.admin-footer-dev{font-size:11.5px;font-weight:600;color:var(--sage);margin-bottom:4px}
+.admin-footer-copy{font-size:10.5px;color:#9AA19C}
+
+/* Halaman Notifikasi */
+.heading-actions{display:flex;gap:10px;align-items:center}
+.notif-toolbar{border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px}
+.notif-filter-tabs{display:flex;gap:8px}
+.notif-tab{border:1px solid var(--border);background:#fff;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:600;color:var(--muted);transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.notif-tab:hover{background:var(--sage-light);color:var(--sage-dark)}
+.notif-tab.active{background:var(--sage);color:#fff;border-color:var(--sage)}
+.notif-tab.active .notif-count-badge{background:#fff;color:var(--sage-dark)}
+.notif-count-badge{background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+.notif-list{display:flex;flex-direction:column;gap:10px}
+.notif-page-item{display:flex;align-items:flex-start;gap:14px;padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff;transition:.2s;cursor:pointer;position:relative}
+.notif-page-item:hover{border-color:var(--sage);box-shadow:var(--shadow);transform:translateY(-1px)}
+.notif-page-item.unread{background:#F6F9F6;border-left:4px solid var(--sage)}
+.notif-page-item.read{opacity:.85}
+.notif-icon{width:40px;height:40px;border-radius:12px;background:var(--sage-light);color:var(--sage-dark);display:grid;place-items:center;font-size:16px;flex-shrink:0}
+.notif-content{flex:1;min-width:0}
+.notif-title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
+.notif-title-row strong{font-size:13px;color:var(--text)}
+.notif-time{font-size:11px;color:var(--muted);white-space:nowrap}
+.notif-sub{font-size:12px;color:var(--muted);margin-bottom:6px;line-height:1.4;overflow-wrap:anywhere}
+.notif-actions{display:flex;gap:8px;margin-top:8px}
+.notif-unread-dot{width:8px;height:8px;border-radius:50%;background:var(--sage);position:absolute;top:16px;right:16px}
+.notif-empty{padding:36px 16px;text-align:center;color:var(--muted);font-size:13px}
 .session-card{display:flex;align-items:center;gap:14px}
 .session-avatar{width:52px;height:52px;border-radius:50%;background:var(--sage-light);color:var(--sage-dark);display:grid;place-items:center;font-weight:800;font-size:18px;overflow:hidden}
 .session-avatar img{width:100%;height:100%;object-fit:cover}

@@ -607,6 +607,44 @@ function photoBlock(src, label) {
     : "";
 }
 
+export function openRepairDetail(r) {
+  if (!r) return message("Laporan tidak ditemukan.");
+  const lines = [
+    ["Tiket", r.ticketNo],
+    ["Pelapor", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
+    ["Tanggal lapor", formatDate(r.createdAt)],
+    ["Kategori", r.category],
+    ["Lokasi", r.location],
+    ["Urgensi", r.urgency],
+    ["Deskripsi", r.description],
+    ["Status", r.status],
+    ["Pelaksana", executorText(r)],
+    ["Catatan status", r.statusNote || "-"],
+    ["Diproses oleh", r.updatedByName || "-"]
+  ];
+
+  if (r.status === "Selesai") {
+    lines.push(
+      ["Tanggal selesai", formatDay(r.completedDate)],
+      ["Tindakan", r.actionNote || "-"],
+      ["Biaya", rupiah(r.cost)]
+    );
+  }
+
+  openModal(
+    "Detail Laporan",
+    lines.map(([label, value]) =>
+      field(label, `<div>${esc(value ?? "-")}</div>`)
+    ).join("") +
+    photoBlock(r.photoData, "Foto kerusakan") +
+    photoBlock(r.afterPhotoData, "Foto setelah perbaikan"),
+    "",
+    null
+  );
+}
+
+window.openRepairDetail = openRepairDetail;
+
 function openAction(action, id) {
   const r = repairs.find(x => x.id === id);
   if (!r) return message("Laporan tidak ditemukan.");
@@ -616,38 +654,7 @@ function openAction(action, id) {
     `<br><small>${esc(r.description)}</small>`;
 
   if (action === "detail") {
-    const lines = [
-      ["Tiket", r.ticketNo],
-      ["Pelapor", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
-      ["Tanggal lapor", formatDate(r.createdAt)],
-      ["Kategori", r.category],
-      ["Lokasi", r.location],
-      ["Urgensi", r.urgency],
-      ["Deskripsi", r.description],
-      ["Status", r.status],
-      ["Pelaksana", executorText(r)],
-      ["Catatan status", r.statusNote || "-"],
-      ["Diproses oleh", r.updatedByName || "-"]
-    ];
-
-    if (r.status === "Selesai") {
-      lines.push(
-        ["Tanggal selesai", formatDay(r.completedDate)],
-        ["Tindakan", r.actionNote || "-"],
-        ["Biaya", rupiah(r.cost)]
-      );
-    }
-
-    openModal(
-      "Detail Laporan",
-      lines.map(([label, value]) =>
-        field(label, `<div>${esc(value ?? "-")}</div>`)
-      ).join("") +
-      photoBlock(r.photoData, "Foto kerusakan") +
-      photoBlock(r.afterPhotoData, "Foto setelah perbaikan"),
-      "",
-      null
-    );
+    openRepairDetail(r);
   } else if (action === "approve") {
     openModal(
       "Setujui Laporan",
