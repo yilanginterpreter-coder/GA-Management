@@ -1,4 +1,5 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
+import { hasPerm } from "./perms.js";
 
 import {
   collection,
@@ -328,7 +329,8 @@ let existingCodes = new Set();
 let records = [];
 
 const canImport = () =>
-  !!profile && ["main_admin", "ga_admin"].includes(profile.role);
+  !!profile && ["main_admin", "ga_admin"].includes(profile.role) &&
+  hasPerm(profile, "inventory");
 
 const esc = value =>
   String(value ?? "").replace(/[&<>"']/g, c => ({
