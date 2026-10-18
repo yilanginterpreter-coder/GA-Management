@@ -893,6 +893,9 @@ function handleNotifItemClick(kind, id) {
   }
 
   if (kind === "requests") {
+    if (isStaff() && !can("requests")) {
+      return askAccess("requests");
+    }
     const item = data.service.find(x => x.id === id);
     if (typeof window.openRequestDetail === "function" && item) {
       window.openRequestDetail(item);
@@ -903,6 +906,9 @@ function handleNotifItemClick(kind, id) {
   }
 
   if (kind === "repairs") {
+    if (isStaff() && !can("repairs")) {
+      return askAccess("repairs");
+    }
     const item = data.repairs.find(x => x.id === id);
     if (typeof window.openRepairDetail === "function" && item) {
       window.openRepairDetail(item);
