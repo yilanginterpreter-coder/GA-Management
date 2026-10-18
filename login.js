@@ -174,6 +174,7 @@ function showLogin(message = "", type = "error") {
   if (loginScreen) loginScreen.hidden = false;
   if (appContent) appContent.hidden = true;
   showMessage(message, type);
+  window.scrollTo(0, 0);
 }
 
 function setSubmittingState(isSubmitting) {
@@ -227,6 +228,7 @@ function showApp(role, name) {
 
   // Tampilan menu diatur oleh shell.js (kotak menu + hak akses).
   showMessage("");
+  window.scrollTo(0, 0);
 }
 function validRole(role) {
   return [
