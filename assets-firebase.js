@@ -1,4 +1,5 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
+import { hasPerm } from "./perms.js";
 
 import {
   collection,
@@ -41,7 +42,8 @@ const assetFields = [
 
 function canWrite() {
   return currentProfile?.active === true &&
-    ["main_admin", "ga_admin"].includes(currentProfile.role);
+    ["main_admin", "ga_admin"].includes(currentProfile.role) &&
+    hasPerm(currentProfile, "assets");
 }
 
 function escapeHTML(value) {
