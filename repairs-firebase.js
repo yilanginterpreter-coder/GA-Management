@@ -1,974 +1,792 @@
-
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+import { auth, db, authPersistenceReady } from "./firebase-init.js";
+import { hasPerm } from "./perms.js";
 
 import {
+  collection,
   doc,
   getDoc,
-  collection,
-  query,
-  where,
-  onSnapshot,
+  getDocs,
   setDoc,
   updateDoc,
+  query,
+  where,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
 
 import {
-  auth,
-  db,
-  authPersistenceReady
-} from "./firebase-init.js";
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 
-const el = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-const adminRoles = ["main_admin", "ga_admin"];
-const allRoles = [...adminRoles, "admin_operational"];
+const MANAGER_ROLES = ["main_admin", "ga_admin"];
+const STAFF_ROLES = ["main_admin", "ga_admin", "admin_operational"];
+const VALID_ROLES = [...STAFF_ROLES, "employee"];
 
-const statuses = [
-  "Baru",
-  "Disetujui",
-  "Ditolak",
-  "Dikerjakan",
-  "Menunggu Part",
-  "Selesai",
-  "Dibatalkan"
+const CATEGORIES = [
+  "Listrik",
+  "Air / Plumbing",
+  "AC / Pendingin",
+  "Furnitur",
+  "Bangunan",
+  "Kebersihan",
+  "Lainnya"
+];
+const URGENCIES = ["Rendah", "Sedang", "Mendesak"];
+const STATUSES = [
+  "Baru", "Disetujui", "Dikerjakan", "Menunggu Part",
+  "Selesai", "Ditolak", "Dibatalkan"
 ];
 
-let profile = null;
-let uid = null;
-let unsubscribe = null;
-let records = [];
-let photo = "";
-let busy = false;
+const MAX_PHOTO_CHARS = 110000;
 
-const escapeHTML = (value) =>
-  String(value ?? "").replace(/[&<>"']/g, (char) => ({
+let user = null;
+let profile = null;
+let repairs = [];
+let statusFilter = "";
+let searchTerm = "";
+let busy = false;
+let generation = 0;
+
+const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
+const canManage = () =>
+  !!profile && MANAGER_ROLES.includes(profile.role) && hasPerm(profile, "repairs");
+
+const esc = value =>
+  String(value ?? "").replace(/[&<>"']/g, c => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;"
-  })[char]);
+  }[c]));
 
-const isAdmin = () => adminRoles.includes(profile?.role);
+function message(text) {
+  if (typeof window.notify === "function") window.notify(text);
+  else alert(text);
+}
 
-const date = () => {
+function errorText(error) {
+  if (error?.code === "permission-denied") {
+    return "Rules menolak tindakan ini. Pastikan firestore.rules terbaru sudah dipublikasikan dan status laporan masih sesuai.";
+  }
+  return error?.message || "Terjadi kesalahan.";
+}
+
+function localDate() {
   const d = new Date();
-
   return [
     d.getFullYear(),
     String(d.getMonth() + 1).padStart(2, "0"),
     String(d.getDate()).padStart(2, "0")
   ].join("-");
-};
-
-function ticket() {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-
-  return (
-    "RPR-" +
-    date().slice(2).replaceAll("-", "") +
-    "-" +
-    Array.from(bytes, (b) =>
-      (b % 36).toString(36).toUpperCase()
-    ).join("")
-  );
 }
 
-function notice(message) {
-  alert(message);
+function newTicket() {
+  const d = new Date();
+  const ymd =
+    String(d.getFullYear()).slice(2) +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    String(d.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const random = Array.from(
+    crypto.getRandomValues(new Uint8Array(6)),
+    b => chars[b % chars.length]
+  ).join("");
+  return `RPR-${ymd}-${random}`;
 }
 
-function modal(title, html) {
-  let box = el("repairDialog");
+function formatDate(timestamp) {
+  const date = timestamp?.toDate?.();
+  return date
+    ? date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      })
+    : "-";
+}
 
-  if (!box) {
-    const style = document.createElement("style");
+function formatDay(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? String(value || "-")
+    : date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      });
+}
 
-    style.textContent = `
-      #repairDialog {
-        position: fixed;
-        inset: 0;
-        z-index: 99999;
-        background: #0008;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 15px;
-      }
+function rupiah(value) {
+  return "Rp " + Number(value || 0).toLocaleString("id-ID");
+}
 
-      #repairDialog.open {
-        display: flex;
-      }
+function statusBadge(status) {
+  const cls = {
+    Baru: "warning",
+    Disetujui: "",
+    Dikerjakan: "",
+    "Menunggu Part": "warning",
+    Selesai: "",
+    Ditolak: "danger",
+    Dibatalkan: "neutral"
+  }[status] ?? "neutral";
+  return `<span class="status-badge ${cls}">${esc(status || "-")}</span>`;
+}
 
-      #repairDialog .rf-card {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        width: min(610px, 100%);
-        max-height: 90vh;
-        overflow: auto;
-        color: #243330;
-      }
+function urgencyBadge(level) {
+  const cls = { Mendesak: "danger", Sedang: "warning", Rendah: "neutral" }[level] ?? "neutral";
+  return `<span class="status-badge ${cls}">${esc(level || "-")}</span>`;
+}
 
-      #repairDialog label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        margin: 12px 0;
-      }
+const safePhoto = value =>
+  typeof value === "string" && value.startsWith("data:image/jpeg;base64,");
 
-      #repairDialog input,
-      #repairDialog select,
-      #repairDialog textarea {
-        box-sizing: border-box;
-        width: 100%;
-        padding: 11px;
-        margin-top: 5px;
-        border: 1px solid #ccd7d4;
-        border-radius: 8px;
-        font: inherit;
-      }
+/* ---------- Foto: kompres jadi JPEG kecil ---------- */
 
-      #repairDialog textarea {
-        min-height: 95px;
-      }
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("File bukan gambar yang valid."));
+    };
+    img.src = url;
+  });
+}
 
-      #repairDialog .rf-buttons {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-top: 18px;
-      }
-
-      #repairDialog button {
-        padding: 10px 15px;
-        border-radius: 8px;
-        cursor: pointer;
-      }
-
-      #repairDialog .rf-primary {
-        background: #437e7b;
-        color: white;
-        border: 0;
-      }
-
-      #repairDialog .rf-preview {
-        max-width: 200px;
-        max-height: 150px;
-        display: none;
-      }
-
-      #repairDialog .rf-error {
-        color: #b42318;
-      }
-    `;
-
-    document.head.appendChild(style);
-
-    box = document.createElement("div");
-    box.id = "repairDialog";
-
-    box.innerHTML = `
-      <div class="rf-card" role="dialog" aria-modal="true">
-        <h2 id="rfTitle"></h2>
-        <div id="rfBody"></div>
-      </div>
-    `;
-
-    document.body.appendChild(box);
-
-    box.addEventListener("click", (event) => {
-      if (event.target === box) {
-        closeModal();
-      }
-    });
+async function compressPhoto(file) {
+  if (!file || !String(file.type).startsWith("image/")) {
+    throw new Error("Pilih file gambar (JPG atau PNG).");
   }
 
-  el("rfTitle").textContent = title;
-  el("rfBody").innerHTML = html;
+  const img = await loadImage(file);
+  let maxSide = 1024;
+  let quality = 0.8;
 
-  box.classList.add("open");
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
 
-  el("rfCancel")?.addEventListener("click", closeModal);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const data = canvas.toDataURL("image/jpeg", quality);
+    if (data.length <= MAX_PHOTO_CHARS) return data;
+
+    quality -= 0.1;
+    if (quality < 0.4) {
+      quality = 0.75;
+      maxSide = Math.round(maxSide * 0.75);
+    }
+  }
+
+  throw new Error("Foto terlalu besar. Pilih foto lain.");
 }
+
+// Pasang pemilih foto: hasilnya disimpan di objek yang dikembalikan.
+function bindPhotoInput(modal, inputName) {
+  const holder = { data: "", pending: null };
+  const input = modal.querySelector(`input[name="${inputName}"]`);
+  const preview = modal.querySelector(`[data-preview="${inputName}"]`);
+  if (!input) return holder;
+
+  input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    holder.data = "";
+    if (preview) preview.innerHTML = "";
+    if (!file) return;
+
+    holder.pending = compressPhoto(file)
+      .then(data => {
+        holder.data = data;
+        if (preview) {
+          preview.innerHTML = `<img src="${esc(data)}" alt="Pratinjau foto">`;
+        }
+      })
+      .catch(error => {
+        input.value = "";
+        message(error.message);
+      });
+  });
+
+  return holder;
+}
+
+/* ---------- Modal ---------- */
 
 function closeModal() {
-  el("repairDialog")?.classList.remove("open");
-  photo = "";
+  $("repairModal")?.remove();
 }
 
-async function compress(file) {
-  if (!file) return "";
-
-  if (
-    !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-    file.size > 10 * 1024 * 1024
-  ) {
-    throw Error("Foto harus JPG/PNG/WebP maksimal 10 MB.");
-  }
-
-  const bitmap = await createImageBitmap(file);
-
-  try {
-    let width = 900;
-    let quality = 0.75;
-
-    for (let i = 0; i < 10; i++) {
-      const scale = Math.min(
-        1,
-        width / Math.max(bitmap.width, bitmap.height)
-      );
-
-      const canvas = document.createElement("canvas");
-
-      canvas.width = Math.max(
-        1,
-        Math.round(bitmap.width * scale)
-      );
-
-      canvas.height = Math.max(
-        1,
-        Math.round(bitmap.height * scale)
-      );
-
-      const ctx = canvas.getContext("2d");
-
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        bitmap,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      const data = canvas.toDataURL("image/jpeg", quality);
-
-      if (data.length <= 120000) {
-        return data;
-      }
-
-      width = Math.round(width * 0.78);
-      quality = Math.max(0.35, quality - 0.06);
-    }
-
-    throw Error("Foto terlalu besar setelah kompresi.");
-  } finally {
-    bitmap.close();
-  }
+function field(label, control, full = true) {
+  return `<div class="field ${full ? "full" : ""}"><label>${esc(label)}</label>${control}</div>`;
 }
 
-function photoInput() {
-  const input = el("rfPhoto");
-
-  if (!input) return;
-
-  input.onchange = async (event) => {
-    photo = "";
-
-    const img = el("rfPreview");
-
-    img.style.display = "none";
-    el("rfError").textContent = "";
-
-    try {
-      if (event.target.files[0]) {
-        photo = await compress(event.target.files[0]);
-
-        img.src = photo;
-        img.style.display = "block";
-      }
-    } catch (error) {
-      el("rfError").textContent = error.message;
-      input.value = "";
-    }
-  };
+function optionList(list, selected = "") {
+  return list
+    .map(v => `<option${v === selected ? " selected" : ""}>${esc(v)}</option>`)
+    .join("");
 }
 
-function reportForm() {
-  if (!uid || !profile) {
-    return notice("Silakan login terlebih dahulu.");
-  }
+function openModal(title, bodyHTML, submitLabel, onSubmit, setup) {
+  closeModal();
 
-  photo = "";
-
-  modal("Lapor Kerusakan", `
-    <form id="rfForm">
-      <label>
-        Kategori *
-        <select name="category" required>
-          <option value="">Pilih kategori</option>
-          <option>AC</option>
-          <option>Listrik</option>
-          <option>Air / Plumbing</option>
-          <option>Bangunan</option>
-          <option>Furniture</option>
-          <option>Peralatan</option>
-          <option>Lainnya</option>
-        </select>
-      </label>
-
-      <label>
-        Lokasi *
-        <input name="location" maxlength="150" required>
-      </label>
-
-      <label>
-        Deskripsi masalah *
-        <textarea
-          name="description"
-          maxlength="1000"
-          required
-        ></textarea>
-      </label>
-
-      <label>
-        Urgensi *
-        <select name="urgency">
-          <option>Rendah</option>
-          <option selected>Sedang</option>
-          <option>Mendesak</option>
-        </select>
-      </label>
-
-      <label>
-        Foto kerusakan (opsional)
-        <input
-          id="rfPhoto"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-        >
-      </label>
-
-      <img
-        id="rfPreview"
-        class="rf-preview"
-        alt="Preview foto"
-      >
-
-      <p class="rf-error" id="rfError"></p>
-
-      <div class="rf-buttons">
-        <button type="button" id="rfCancel">
-          Batal
-        </button>
-
-        <button
-          type="submit"
-          class="rf-primary"
-          id="rfSave"
-        >
-          Kirim Laporan
+  const modal = document.createElement("div");
+  modal.className = "modal open";
+  modal.id = "repairModal";
+  modal.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-heading">
+        <div>
+          <span class="eyebrow">GA MANAGEMENT</span>
+          <h2>${esc(title)}</h2>
+        </div>
+        <button type="button" class="icon-button" data-close aria-label="Tutup">
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-    </form>
-  `);
+      <form>
+        <div class="form-fields">${bodyHTML}</div>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" data-close>
+            ${onSubmit ? "Batal" : "Tutup"}
+          </button>
+          ${onSubmit
+            ? `<button type="submit" class="primary-button">${esc(submitLabel)}</button>`
+            : ""}
+        </div>
+      </form>
+    </div>`;
 
-  photoInput();
-
-  el("rfForm").onsubmit = async (event) => {
-    event.preventDefault();
-
-    if (busy) return;
-
-    const form = new FormData(event.currentTarget);
-
-    const category = String(form.get("category") || "");
-    const location = String(form.get("location") || "").trim();
-    const description = String(form.get("description") || "").trim();
-    const urgency = String(form.get("urgency") || "");
-
-    if (!category || !location || !description) {
-      return;
+  modal.addEventListener("click", event => {
+    if (event.target === modal || event.target.closest("[data-close]")) {
+      closeModal();
     }
+  });
+
+  const helpers = setup ? setup(modal) : null;
+
+  modal.querySelector("form").addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!onSubmit || busy) return;
 
     busy = true;
-    el("rfSave").disabled = true;
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = true;
 
     try {
-      const id = ticket();
+      // Tunggu kompresi foto yang masih berjalan.
+      if (helpers) {
+        for (const holder of Object.values(helpers)) {
+          if (holder?.pending) await holder.pending;
+        }
+      }
 
-      await setDoc(doc(db, "repairRequests", id), {
-        ticketNo: id,
-        type: "perbaikan",
-        requesterUid: uid,
-        requesterName: profile.name,
-        department: profile.department || "",
-        category,
-        location,
-        description,
-        urgency,
-        photoData: photo,
-        status: "Baru",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
+      const data = Object.fromEntries(
+        [...new FormData(event.currentTarget)].filter(
+          ([, value]) => typeof value === "string"
+        )
+      );
+      const result = await onSubmit(data, helpers);
       closeModal();
-      notice("Laporan berhasil dikirim: " + id);
+      message(result || "Berhasil disimpan.");
+      document.dispatchEvent(new Event("ga:data-changed"));
+      await load();
     } catch (error) {
-      console.error(error);
-
-      el("rfError").textContent =
-        "Gagal menyimpan: " + error.message;
+      console.error("Laporan perbaikan gagal:", error);
+      message(errorText(error));
+      if (submit) submit.disabled = false;
     } finally {
       busy = false;
-      el("rfSave").disabled = false;
     }
-  };
+  });
+
+  document.body.appendChild(modal);
+  modal.querySelector("input, select, textarea, .primary-button")?.focus();
 }
 
-function actions(record) {
-  let result = `
-    <button
-      data-action="detail"
-      data-id="${escapeHTML(record.id)}"
-    >
-      Detail
-    </button>
-  `;
+/* ---------- Tabel ---------- */
 
-  if (isAdmin()) {
-    if (record.status === "Baru") {
-      result += `
-        <button
-          data-action="approve"
-          data-id="${escapeHTML(record.id)}"
-        >
-          Setujui
-        </button>
+function executorText(r) {
+  if (!r.executor) return "-";
+  return r.executor === "Vendor" ? `Vendor: ${r.vendorName || "-"}` : "Internal GA";
+}
 
-        <button
-          data-action="reject"
-          data-id="${escapeHTML(record.id)}"
-        >
-          Tolak
-        </button>
-      `;
+function rowHTML(r) {
+  const actions = [
+    `<button type="button" class="small-action" data-action="detail" data-id="${esc(r.id)}">Detail</button>`
+  ];
+
+  if (canManage()) {
+    if (r.status === "Baru") {
+      actions.push(
+        `<button type="button" class="small-action" data-action="approve" data-id="${esc(r.id)}">Setujui</button>`,
+        `<button type="button" class="small-action delete" data-action="reject" data-id="${esc(r.id)}">Tolak</button>`
+      );
     }
-
-    if (
-      ["Disetujui", "Menunggu Part"].includes(record.status)
-    ) {
-      result += `
-        <button
-          data-action="start"
-          data-id="${escapeHTML(record.id)}"
-        >
-          Kerjakan
-        </button>
-      `;
+    if (r.status === "Disetujui") {
+      actions.push(
+        `<button type="button" class="small-action" data-action="start" data-id="${esc(r.id)}">Kerjakan</button>`
+      );
     }
-
-    if (record.status === "Dikerjakan") {
-      result += `
-        <button
-          data-action="hold"
-          data-id="${escapeHTML(record.id)}"
-        >
-          Tunggu Part
-        </button>
-      `;
+    if (r.status === "Dikerjakan") {
+      actions.push(
+        `<button type="button" class="small-action" data-action="hold" data-id="${esc(r.id)}">Tunggu Part</button>`,
+        `<button type="button" class="small-action" data-action="finish" data-id="${esc(r.id)}">Selesaikan</button>`
+      );
     }
-
-    if (
-      ["Dikerjakan", "Menunggu Part"].includes(record.status)
-    ) {
-      result += `
-        <button
-          data-action="finish"
-          data-id="${escapeHTML(record.id)}"
-        >
-          Selesai
-        </button>
-      `;
+    if (r.status === "Menunggu Part") {
+      actions.push(
+        `<button type="button" class="small-action" data-action="resume" data-id="${esc(r.id)}">Lanjutkan</button>`,
+        `<button type="button" class="small-action" data-action="finish" data-id="${esc(r.id)}">Selesaikan</button>`
+      );
     }
   }
 
-  if (
-    record.requesterUid === uid &&
-    record.status === "Baru"
-  ) {
-    result += `
-      <button
-        data-action="cancel"
-        data-id="${escapeHTML(record.id)}"
-      >
-        Batalkan
-      </button>
-    `;
+  if (r.requesterUid === user?.uid && r.status === "Baru") {
+    actions.push(
+      `<button type="button" class="small-action delete" data-action="cancel" data-id="${esc(r.id)}">Batalkan</button>`
+    );
   }
 
-  return result;
+  return `
+    <tr>
+      <td>${esc(r.ticketNo || r.id)}</td>
+      <td>${formatDate(r.createdAt)}</td>
+      <td>${esc(r.requesterName)}${r.department ? ` <small>(${esc(r.department)})</small>` : ""}</td>
+      <td>${esc(r.category)}<br><small>${esc(r.location)}</small></td>
+      <td class="repair-desc">${esc(r.description)}</td>
+      <td>${urgencyBadge(r.urgency)}</td>
+      <td>${esc(executorText(r))}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td><div class="row-actions">${actions.join("")}</div></td>
+    </tr>`;
 }
 
 function render() {
-  const tbody = el("repairTable");
+  const subtitle = $("repairSubtitle");
+  if (subtitle) {
+    subtitle.textContent = isStaff()
+      ? "Setujui laporan kerusakan, tentukan pelaksana, dan pantau sampai selesai."
+      : "Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.";
+  }
 
-  if (!tbody) return;
+  const body = $("repairTable");
+  if (!body) return;
 
-  const search = (
-    el("repairSearch")?.value || ""
-  ).toLowerCase();
+  const term = searchTerm.trim().toLocaleLowerCase("id-ID");
 
-  const status = el("repairFilter")?.value || "";
-
-  const list = records.filter((record) => {
-    const matchesStatus =
-      !status || record.status === status;
-
-    const matchesSearch = [
-      record.ticketNo,
-      record.requesterName,
-      record.location,
-      record.category,
-      record.description
-    ].some((value) =>
-      String(value || "")
-        .toLowerCase()
-        .includes(search)
-    );
-
-    return matchesStatus && matchesSearch;
+  const rows = repairs.filter(r => {
+    if (statusFilter && r.status !== statusFilter) return false;
+    if (!term) return true;
+    return [
+      r.ticketNo, r.requesterName, r.category, r.location,
+      r.description, r.vendorName
+    ].join(" ").toLocaleLowerCase("id-ID").includes(term);
   });
 
-  tbody.innerHTML = list.length
-    ? list.map((record) => `
-        <tr>
-          <td>${escapeHTML(record.ticketNo)}</td>
-          <td>${escapeHTML(
-            record.createdAt?.toDate?.()
-              .toLocaleDateString("id-ID") || "-"
-          )}</td>
-          <td>${escapeHTML(record.requesterName)}</td>
-          <td>
-            ${escapeHTML(record.category)} /
-            ${escapeHTML(record.location)}
-          </td>
-          <td>${escapeHTML(record.description)}</td>
-          <td>${escapeHTML(record.urgency)}</td>
-          <td>${escapeHTML(record.executor || "-")}</td>
-          <td>${escapeHTML(record.status)}</td>
-          <td>${actions(record)}</td>
-        </tr>
-      `).join("")
-    : `
-      <tr>
-        <td colspan="9" class="empty-cell">
-          Belum ada laporan.
-        </td>
-      </tr>
-    `;
+  body.innerHTML = rows.length
+    ? rows.map(rowHTML).join("")
+    : `<tr><td colspan="9" class="empty-cell">${
+        profile ? "Belum ada laporan perbaikan." : "Silakan login."
+      }</td></tr>`;
 }
 
-function details(record) {
-  const image = (value) =>
-    typeof value === "string" &&
-    value.startsWith("data:image/jpeg;base64,")
-      ? `
-        <img
-          style="max-width:100%;max-height:250px"
-          src="${value}"
-          alt="Foto laporan"
-        >
-      `
-      : "";
+async function load() {
+  if (!user || !profile) return;
+  const current = generation;
+  const uid = user.uid;
 
-  modal("Detail " + record.ticketNo, `
-    <p>
-      <b>Pelapor:</b>
-      ${escapeHTML(record.requesterName)}
-    </p>
+  try {
+    const source = isStaff()
+      ? collection(db, "repairRequests")
+      : query(collection(db, "repairRequests"), where("requesterUid", "==", uid));
 
-    <p>
-      <b>Lokasi:</b>
-      ${escapeHTML(record.location)}
-    </p>
+    const snapshot = await getDocs(source);
+    if (current !== generation) return;
 
-    <p>
-      <b>Masalah:</b>
-      ${escapeHTML(record.description)}
-    </p>
+    repairs = snapshot.docs
+      .map(d => ({ ...d.data(), id: d.id }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-    <p>
-      <b>Status:</b>
-      ${escapeHTML(record.status)}
-    </p>
-
-    <p>
-      <b>Catatan:</b>
-      ${escapeHTML(record.statusNote || "-")}
-    </p>
-
-    ${image(record.photoData)}
-    ${image(record.afterPhotoData)}
-
-    <div class="rf-buttons">
-      <button id="rfCancel">Tutup</button>
-    </div>
-  `);
+    render();
+  } catch (error) {
+    if (current !== generation) return;
+    console.error("Gagal memuat laporan perbaikan:", error);
+    message("Gagal memuat laporan perbaikan. Periksa koneksi dan izin akses.");
+  }
 }
 
-function updateForm(record, action) {
-  const mapping = {
-    approve: ["Setujui", "Disetujui"],
-    reject: ["Tolak", "Ditolak"],
-    start: ["Mulai Pekerjaan", "Dikerjakan"],
-    hold: ["Tunggu Part", "Menunggu Part"],
-    finish: ["Selesaikan", "Selesai"],
-    cancel: ["Batalkan", "Dibatalkan"]
-  };
+/* ---------- Tindakan ---------- */
 
-  const config = mapping[action];
+async function createRepair(data, photo) {
+  const category = String(data.category || "");
+  const location = String(data.location || "").trim();
+  const description = String(data.description || "").trim();
+  const urgency = String(data.urgency || "");
 
-  if (!config) return;
-
-  if (action !== "cancel" && !isAdmin()) {
-    return notice("Tidak memiliki izin.");
+  if (!CATEGORIES.includes(category)) throw new Error("Pilih kategori kerusakan.");
+  if (!location || location.length > 150) {
+    throw new Error("Lokasi wajib diisi, maksimal 150 karakter.");
   }
-
-  if (
-    action === "cancel" &&
-    (
-      record.requesterUid !== uid ||
-      record.status !== "Baru"
-    )
-  ) {
-    return;
+  if (!description || description.length > 1000) {
+    throw new Error("Deskripsi wajib diisi, maksimal 1000 karakter.");
   }
+  if (!URGENCIES.includes(urgency)) throw new Error("Pilih tingkat urgensi.");
 
-  const extra =
-    action === "start"
-      ? `
-        <label>
-          Pelaksana
-          <select name="executor">
-            <option>Internal</option>
-            <option>Vendor</option>
-          </select>
-        </label>
+  const ticket = newTicket();
 
-        <label>
-          Nama Vendor (jika vendor)
-          <input
-            name="vendorName"
-            maxlength="100"
-          >
-        </label>
-      `
-      : action === "finish"
-      ? `
-        <label>
-          Tindakan *
-          <textarea
-            name="actionNote"
-            required
-            maxlength="1000"
-          ></textarea>
-        </label>
+  await setDoc(doc(db, "repairRequests", ticket), {
+    ticketNo: ticket,
+    type: "perbaikan",
+    requesterUid: user.uid,
+    requesterName: profile.name,
+    department: profile.department || "",
+    category,
+    location,
+    description,
+    urgency,
+    photoData: photo?.data || "",
+    status: "Baru",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
 
-        <label>
-          Tanggal selesai *
-          <input
-            type="date"
-            name="completedDate"
-            value="${date()}"
-            required
-          >
-        </label>
+  return `Laporan ${ticket} berhasil dikirim.`;
+}
 
-        <label>
-          Biaya (Rp) *
-          <input
-            type="number"
-            name="cost"
-            min="0"
-            max="100000000000"
-            value="0"
-            required
-          >
-        </label>
-
-        <label>
-          Foto hasil (opsional)
-          <input
-            type="file"
-            id="rfPhoto"
-            accept="image/jpeg,image/png,image/webp"
-          >
-        </label>
-
-        <img
-          id="rfPreview"
-          class="rf-preview"
-          alt="Foto hasil"
-        >
-      `
-      : "";
-
-  const required = [
-    "reject",
-    "hold",
-    "cancel"
-  ].includes(action);
-
-  photo = "";
-
-  modal(config[0] + " — " + record.ticketNo, `
-    <form id="rfActionForm">
-      <label>
-        Catatan ${required ? "*" : "(opsional)"}
-        <textarea
-          name="statusNote"
-          maxlength="500"
-          ${required ? "required" : ""}
-        ></textarea>
-      </label>
-
-      ${extra}
-
-      <p class="rf-error" id="rfError"></p>
-
-      <div class="rf-buttons">
-        <button type="button" id="rfCancel">
-          Batal
-        </button>
-
-        <button
-          type="submit"
-          id="rfSave"
-          class="rf-primary"
-        >
-          Simpan
-        </button>
-      </div>
-    </form>
-  `);
-
-  photoInput();
-
-  el("rfActionForm").onsubmit = async (event) => {
-    event.preventDefault();
-
-    if (busy) return;
-
-    const form = new FormData(event.currentTarget);
-
-    const note = String(
-      form.get("statusNote") || ""
-    ).trim();
-
-    const update = {
-      status: config[1],
-      statusNote: note,
-      updatedAt: serverTimestamp()
-    };
-
-    if (action !== "cancel") {
-      update.updatedBy = uid;
-      update.updatedByName = profile.name;
-    }
-
-    if (action === "start") {
-      update.executor = String(
-        form.get("executor") || "Internal"
-      );
-
-      update.vendorName = String(
-        form.get("vendorName") || ""
-      ).trim();
-
-      if (
-        update.executor === "Vendor" &&
-        !update.vendorName
-      ) {
-        el("rfError").textContent =
-          "Nama vendor wajib.";
-        return;
-      }
-    }
-
-    if (action === "finish") {
-      update.actionNote = String(
-        form.get("actionNote") || ""
-      ).trim();
-
-      update.completedDate = String(
-        form.get("completedDate") || ""
-      );
-
-      update.cost = Number(form.get("cost"));
-      update.afterPhotoData = photo;
-
-      if (
-        !Number.isSafeInteger(update.cost) ||
-        update.cost < 0 ||
-        update.cost > 100000000000
-      ) {
-        el("rfError").textContent =
-          "Biaya tidak valid.";
-        return;
-      }
-    }
-
-    busy = true;
-    el("rfSave").disabled = true;
-
-    try {
-      await updateDoc(
-        doc(db, "repairRequests", record.id),
-        update
-      );
-
-      closeModal();
-      notice("Status berhasil diperbarui.");
-    } catch (error) {
-      console.error(error);
-
-      el("rfError").textContent =
-        "Gagal memperbarui: " + error.message;
-    } finally {
-      busy = false;
-      el("rfSave").disabled = false;
-    }
+function stamp(note) {
+  return {
+    statusNote: String(note || "").trim(),
+    updatedBy: user.uid,
+    updatedByName: profile.name,
+    updatedAt: serverTimestamp()
   };
 }
 
-function setup() {
-  el("newRepairButton")?.addEventListener(
-    "click",
-    reportForm
-  );
+function checkNote(note, required, label) {
+  const text = String(note || "").trim();
+  if (text.length > 500) throw new Error("Catatan maksimal 500 karakter.");
+  if (required && !text) throw new Error(label);
+  return text;
+}
 
-  el("repairSearch")?.addEventListener(
-    "input",
-    render
-  );
+async function reviewRepair(id, decision, note) {
+  const text = checkNote(note, decision === "Ditolak", "Alasan penolakan wajib diisi.");
 
-  const filter = el("repairFilter");
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: decision,
+    ...stamp(text)
+  });
 
-  if (filter) {
-    filter.innerHTML =
-      '<option value="">Semua status</option>' +
-      statuses.map((status) =>
-        `<option>${status}</option>`
-      ).join("");
+  return decision === "Disetujui" ? "Laporan disetujui." : "Laporan ditolak.";
+}
 
-    filter.addEventListener("change", render);
+async function startRepair(id, data) {
+  const executor = String(data.executor || "");
+  const vendorName = executor === "Vendor" ? String(data.vendorName || "").trim() : "";
+
+  if (!["Internal", "Vendor"].includes(executor)) {
+    throw new Error("Pilih pelaksana: Internal atau Vendor.");
+  }
+  if (executor === "Vendor" && (!vendorName || vendorName.length > 100)) {
+    throw new Error("Nama vendor wajib diisi, maksimal 100 karakter.");
   }
 
-  el("repairTable")?.addEventListener(
-    "click",
-    (event) => {
-      const button = event.target.closest(
-        "button[data-action]"
-      );
+  const text = checkNote(data.note, false);
 
-      if (!button) return;
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: "Dikerjakan",
+    executor,
+    vendorName,
+    ...stamp(text)
+  });
 
-      const record = records.find(
-        (item) => item.id === button.dataset.id
-      );
+  return "Perbaikan mulai dikerjakan.";
+}
 
-      if (!record) return;
+async function resumeRepair(id, note) {
+  const r = repairs.find(x => x.id === id);
+  if (!r?.executor) throw new Error("Pelaksana belum tercatat.");
 
-      if (button.dataset.action === "detail") {
-        details(record);
-      } else {
-        updateForm(record, button.dataset.action);
-      }
-    }
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: "Dikerjakan",
+    executor: r.executor,
+    vendorName: r.vendorName || "",
+    ...stamp(checkNote(note, false))
+  });
+
+  return "Perbaikan dilanjutkan.";
+}
+
+async function holdRepair(id, note) {
+  const text = checkNote(note, true, "Tuliskan part yang ditunggu.");
+
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: "Menunggu Part",
+    ...stamp(text)
+  });
+
+  return "Status diubah menjadi Menunggu Part.";
+}
+
+async function finishRepair(id, data, photo) {
+  const actionNote = String(data.actionNote || "").trim();
+  const completedDate = String(data.completedDate || "");
+  const costText = String(data.cost ?? "").trim();
+  const cost = costText === "" ? 0 : Number(costText);
+
+  if (!actionNote || actionNote.length > 1000) {
+    throw new Error("Catatan tindakan wajib diisi, maksimal 1000 karakter.");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(completedDate)) {
+    throw new Error("Tanggal selesai tidak valid.");
+  }
+  if (!Number.isSafeInteger(cost) || cost < 0) {
+    throw new Error("Biaya harus bilangan bulat, 0 atau lebih.");
+  }
+
+  const prev = repairs.find(x => x.id === id);
+
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: "Selesai",
+    actionNote,
+    completedDate,
+    cost,
+    afterPhotoData: photo?.data || "",
+    ...stamp(prev?.statusNote || "")
+  });
+
+  return "Laporan ditandai selesai.";
+}
+
+async function cancelRepair(id, note) {
+  const text = checkNote(note, true, "Alasan pembatalan wajib diisi.");
+
+  await updateDoc(doc(db, "repairRequests", id), {
+    status: "Dibatalkan",
+    statusNote: text,
+    updatedAt: serverTimestamp()
+  });
+
+  return "Laporan dibatalkan.";
+}
+
+/* ---------- Form ---------- */
+
+function openCreate() {
+  if (!user || !profile) return message("Silakan login kembali.");
+
+  openModal(
+    "Lapor Kerusakan",
+    field("Kategori *", `<select name="category" required><option value="">Pilih kategori</option>${optionList(CATEGORIES)}</select>`, false) +
+    field("Tingkat Urgensi *", `<select name="urgency" required>${optionList(URGENCIES, "Sedang")}</select>`, false) +
+    field("Lokasi *", `<input name="location" maxlength="150" required placeholder="Contoh: Mess B, kamar 12 / Gedung Produksi lantai 2">`) +
+    field("Deskripsi Masalah *", `<textarea name="description" maxlength="1000" required placeholder="Jelaskan apa yang rusak dan bagaimana kondisinya"></textarea>`) +
+    field("Foto Kerusakan (opsional)", `<input name="photo" type="file" accept="image/*"><div class="repair-preview" data-preview="photo"></div>`),
+    "Kirim Laporan",
+    (data, helpers) => createRepair(data, helpers.photo),
+    modal => ({ photo: bindPhotoInput(modal, "photo") })
   );
 }
 
-setup();
+function photoBlock(src, label) {
+  return safePhoto(src)
+    ? field(label, `<div class="repair-preview"><img src="${esc(src)}" alt="${esc(label)}"></div>`)
+    : "";
+}
+
+function openAction(action, id) {
+  const r = repairs.find(x => x.id === id);
+  if (!r) return message("Laporan tidak ditemukan.");
+
+  const summary =
+    `${esc(r.ticketNo)} — ${esc(r.category)}, ${esc(r.location)}` +
+    `<br><small>${esc(r.description)}</small>`;
+
+  if (action === "detail") {
+    const lines = [
+      ["Tiket", r.ticketNo],
+      ["Pelapor", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
+      ["Tanggal lapor", formatDate(r.createdAt)],
+      ["Kategori", r.category],
+      ["Lokasi", r.location],
+      ["Urgensi", r.urgency],
+      ["Deskripsi", r.description],
+      ["Status", r.status],
+      ["Pelaksana", executorText(r)],
+      ["Catatan status", r.statusNote || "-"],
+      ["Diproses oleh", r.updatedByName || "-"]
+    ];
+
+    if (r.status === "Selesai") {
+      lines.push(
+        ["Tanggal selesai", formatDay(r.completedDate)],
+        ["Tindakan", r.actionNote || "-"],
+        ["Biaya", rupiah(r.cost)]
+      );
+    }
+
+    openModal(
+      "Detail Laporan",
+      lines.map(([label, value]) =>
+        field(label, `<div>${esc(value ?? "-")}</div>`)
+      ).join("") +
+      photoBlock(r.photoData, "Foto kerusakan") +
+      photoBlock(r.afterPhotoData, "Foto setelah perbaikan"),
+      "",
+      null
+    );
+  } else if (action === "approve") {
+    openModal(
+      "Setujui Laporan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Catatan (opsional)", `<textarea name="note" maxlength="500"></textarea>`),
+      "Setujui",
+      data => reviewRepair(id, "Disetujui", data.note)
+    );
+  } else if (action === "reject") {
+    openModal(
+      "Tolak Laporan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Alasan penolakan *", `<textarea name="note" maxlength="500" required></textarea>`),
+      "Tolak",
+      data => reviewRepair(id, "Ditolak", data.note)
+    );
+  } else if (action === "start") {
+    openModal(
+      "Mulai Perbaikan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Pelaksana *", `<select name="executor" required><option value="">Pilih pelaksana</option><option value="Internal">Tim internal GA</option><option value="Vendor">Vendor</option></select>`, false) +
+      field("Nama Vendor", `<input name="vendorName" maxlength="100" placeholder="Wajib bila pelaksana Vendor" disabled>`, false) +
+      field("Catatan (opsional)", `<textarea name="note" maxlength="500"></textarea>`),
+      "Mulai Kerjakan",
+      data => startRepair(id, data),
+      modal => {
+        const select = modal.querySelector('[name="executor"]');
+        const vendor = modal.querySelector('[name="vendorName"]');
+        select.addEventListener("change", () => {
+          const isVendor = select.value === "Vendor";
+          vendor.disabled = !isVendor;
+          vendor.required = isVendor;
+          if (!isVendor) vendor.value = "";
+        });
+        return null;
+      }
+    );
+  } else if (action === "resume") {
+    openModal(
+      "Lanjutkan Perbaikan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Pelaksana", `<div>${esc(executorText(r))}</div>`) +
+      field("Catatan (opsional)", `<textarea name="note" maxlength="500" placeholder="Contoh: part sudah datang"></textarea>`),
+      "Lanjutkan",
+      data => resumeRepair(id, data.note)
+    );
+  } else if (action === "hold") {
+    openModal(
+      "Menunggu Part",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Part yang ditunggu *", `<textarea name="note" maxlength="500" required placeholder="Contoh: kompresor AC, perkiraan tiba 3 hari"></textarea>`),
+      "Simpan",
+      data => holdRepair(id, data.note)
+    );
+  } else if (action === "finish") {
+    openModal(
+      "Selesaikan Perbaikan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Tanggal Selesai *", `<input name="completedDate" type="date" value="${localDate()}" required>`, false) +
+      field("Biaya (Rp)", `<input name="cost" type="number" min="0" step="1" value="0">`, false) +
+      field("Catatan Tindakan *", `<textarea name="actionNote" maxlength="1000" required placeholder="Apa yang sudah dikerjakan"></textarea>`) +
+      field("Foto Setelah Perbaikan (opsional)", `<input name="afterPhoto" type="file" accept="image/*"><div class="repair-preview" data-preview="afterPhoto"></div>`),
+      "Tandai Selesai",
+      (data, helpers) => finishRepair(id, data, helpers.afterPhoto),
+      modal => ({ afterPhoto: bindPhotoInput(modal, "afterPhoto") })
+    );
+  } else if (action === "cancel") {
+    openModal(
+      "Batalkan Laporan",
+      field("Laporan", `<div>${summary}</div>`) +
+      field("Alasan pembatalan *", `<textarea name="note" maxlength="500" required></textarea>`),
+      "Batalkan Laporan",
+      data => cancelRepair(id, data.note)
+    );
+  }
+}
+
+/* ---------- Pasang ke halaman ---------- */
+
+$("newRepairButton")?.addEventListener("click", openCreate);
+
+$("repairFilter")?.addEventListener("change", event => {
+  statusFilter = event.target.value;
+  render();
+});
+
+$("repairSearch")?.addEventListener("input", event => {
+  searchTerm = event.target.value;
+  render();
+});
+
+$("repairTable")?.addEventListener("click", event => {
+  const button = event.target.closest("[data-action]");
+  if (button) openAction(button.dataset.action, button.dataset.id);
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeModal();
+});
+
+// Isi opsi filter status dari daftar status.
+const filter = $("repairFilter");
+if (filter && filter.options.length <= 1) {
+  filter.insertAdjacentHTML(
+    "beforeend",
+    STATUSES.map(s => `<option>${esc(s)}</option>`).join("")
+  );
+}
 
 await authPersistenceReady;
 
-onAuthStateChanged(auth, async (user) => {
-  if (unsubscribe) {
-    unsubscribe();
-    unsubscribe = null;
-  }
+onAuthStateChanged(auth, async current => {
+  const thisGeneration = ++generation;
 
-  uid = null;
+  user = null;
   profile = null;
-  records = [];
-
+  repairs = [];
+  closeModal();
   render();
 
-  if (!user) return;
+  if (!current) return;
 
   try {
-    const snapshot = await getDoc(
-      doc(db, "users", user.uid)
-    );
+    await current.reload();
+    if (thisGeneration !== generation || !current.emailVerified) return;
 
-    if (
-      !snapshot.exists() ||
-      snapshot.data().active !== true ||
-      auth.currentUser?.uid !== user.uid
-    ) {
-      return;
-    }
+    const snapshot = await getDoc(doc(db, "users", current.uid));
+    if (thisGeneration !== generation || !snapshot.exists()) return;
 
-    uid = user.uid;
-    profile = snapshot.data();
+    const data = snapshot.data();
+    if (data.active !== true || !VALID_ROLES.includes(data.role)) return;
 
-    const collectionRef = collection(
-      db,
-      "repairRequests"
-    );
+    user = current;
+    profile = data;
 
-    const reportsQuery = allRoles.includes(
-      profile.role
-    )
-      ? collectionRef
-      : query(
-          collectionRef,
-          where("requesterUid", "==", uid)
-        );
-
-    unsubscribe = onSnapshot(
-      reportsQuery,
-      (snapshot) => {
-        records = snapshot.docs
-          .map((document) => ({
-            ...document.data(),
-            id: document.id
-          }))
-          .sort(
-            (a, b) =>
-              (b.createdAt?.seconds || 0) -
-              (a.createdAt?.seconds || 0)
-          );
-
-        render();
-      },
-      (error) => {
-        console.error(
-          "Repair Firestore:",
-          error
-        );
-
-        if (el("repairTable")) {
-          el("repairTable").innerHTML = `
-            <tr>
-              <td colspan="9">
-                Gagal memuat:
-                ${escapeHTML(error.message)}
-              </td>
-            </tr>
-          `;
-        }
-      }
-    );
+    await load();
+    if (thisGeneration === generation) render();
   } catch (error) {
-    console.error(
-      "Repair initialization:",
-      error
-    );
+    if (thisGeneration !== generation) return;
+    console.error("Gagal memuat modul perbaikan:", error);
   }
 });
