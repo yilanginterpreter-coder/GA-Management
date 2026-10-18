@@ -1,0 +1,12 @@
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /login.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /requests-firebase.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /stock-firebase.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /assets-firebase.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /repairs-firebase.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /shell.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /import-inventory.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /firebase-init.js HTTP/1.1" 200 -
+127.0.0.1 - - [18/Oct/2026 09:03:34] "GET /perms.js HTTP/1.1" 200 -

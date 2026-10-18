@@ -10,30 +10,73 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 </head>
 <body>  
-<div id="login-screen">
+<div id="login-screen" class="login-container">
   <div class="login-card">
-    <h1>GA Management</h1>
-    <p>Silakan masuk untuk melanjutkan.</p>
-    <form id="login-form">
-      <label for="login-email">Email</label>
-      <input
-        id="login-email"
-        type="email"
-        autocomplete="username"
-        required
-      >
+    <div class="login-brand-panel">
+      <div class="login-brand-header">
+        <div class="login-brand-icon">
+          <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div class="login-brand-title">
+          <h2>GA Management</h2>
+          <p>后勤管理 · General Affairs</p>
+        </div>
+      </div>
+      <div class="login-brand-content">
+        <h3>Sistem Pengelolaan Operasional GA</h3>
+        <p>Solusi terpadu untuk pengelolaan inventory, aset, fasilitas perbaikan, dan layanan operasional perusahaan secara teratur, transparan, dan efisien.</p>
+      </div>
+      <div class="login-brand-footer">
+        <p>&copy; 2026 GA Management System</p>
+      </div>
+    </div>
 
-      <label for="login-password">Password</label>
-      <input
-        id="login-password"
-        type="password"
-        autocomplete="current-password"
-        required
-      >
+    <div class="login-form-panel">
+      <div class="login-header">
+        <h2>Selamat Datang</h2>
+        <p>Silakan masuk dengan akun Anda untuk melanjutkan.</p>
+      </div>
 
-      <button type="submit">Masuk</button>
-      <p id="login-message" role="status"></p>
-    </form>
+      <form id="login-form" novalidate>
+        <div class="login-field">
+          <label for="login-email">Email</label>
+          <div class="login-input-wrap">
+            <i class="fa-regular fa-envelope login-input-icon"></i>
+            <input
+              id="login-email"
+              type="email"
+              autocomplete="username"
+              placeholder="nama@perusahaan.com"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="login-field">
+          <label for="login-password">Password</label>
+          <div class="login-input-wrap">
+            <i class="fa-solid fa-lock login-input-icon"></i>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Masukkan password Anda"
+              required
+            >
+            <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Tampilkan password" title="Tampilkan/Sembunyikan Password">
+              <i class="fa-regular fa-eye" id="toggle-password-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="login-submit-btn" class="login-submit-btn">
+          <span class="btn-text">Masuk</span>
+          <i class="fa-solid fa-arrow-right btn-icon"></i>
+        </button>
+
+        <div id="login-message" class="login-message" role="status" aria-live="polite"></div>
+      </form>
+    </div>
   </div>
 </div>
 
