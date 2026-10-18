@@ -1,5 +1,6 @@
 :root{--sage:#477B79;--sage-dark:#315E5C;--sage-light:#E4ECE5;--beige:#E9DFCC;--ivory:#FAF9F5;--white:#FFFFFF;--text:#292D2B;--muted:#7C8580;--border:#E7E9E4;--orange:#C58B48;--red:#C45E55;--blue:#6387A5;--shadow:0 5px 22px rgba(42,59,48,.055)}
 *{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 body{font-family:'Inter',sans-serif;background:var(--ivory);color:var(--text);font-size:13px;line-height:1.6}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer}
@@ -336,6 +337,10 @@ footer span{padding:0 5px;color:var(--sage)}
   padding: 20px 16px;
   width: 100%;
   box-sizing: border-box;
+}
+
+#login-screen[hidden] {
+  display: none !important;
 }
 
 .login-card {
