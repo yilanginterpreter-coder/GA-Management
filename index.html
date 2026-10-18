@@ -11,92 +11,70 @@
 </head>
 <body>  
 <div id="login-screen">
-  <div class="login-background-orb login-orb-one" aria-hidden="true"></div>
-  <div class="login-background-orb login-orb-two" aria-hidden="true"></div>
   <div class="login-card">
-    <div class="login-brand">
-      <div class="login-brand-icon" aria-hidden="true"><i class="fa-solid fa-leaf"></i></div>
-      <h1>GA <span>Management</span></h1>
-      <p class="login-brand-subtitle">后勤管理 · GENERAL AFFAIRS SYSTEM</p>
-    </div>
-    <div class="login-divider"></div>
-    <div class="login-intro">
-      <span class="login-eyebrow">SELAMAT DATANG</span>
-      <h2>Masuk ke akun Anda</h2>
-      <p>Kelola kebutuhan General Affairs dalam satu tempat.</p>
-    </div>
+    <h1>GA Management</h1>
+    <p>Silakan masuk untuk melanjutkan.</p>
     <form id="login-form">
-      <label for="login-email">Alamat Email</label>
-      <div class="login-input-wrap">
-        <i class="fa-regular fa-envelope" aria-hidden="true"></i>
-        <input id="login-email" type="email" autocomplete="username" placeholder="nama@perusahaan.com" required>
-      </div>
+      <label for="login-email">Email</label>
+      <input
+        id="login-email"
+        type="email"
+        autocomplete="username"
+        required
+      >
+
       <label for="login-password">Password</label>
-      <div class="login-input-wrap">
-        <i class="fa-solid fa-lock" aria-hidden="true"></i>
-        <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
-        <button type="button" class="login-toggle-password" id="login-toggle-password" aria-label="Tampilkan password" aria-pressed="false"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
-      </div>
-      <button class="login-submit" type="submit">Masuk ke GA Management <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
-      <p id="login-message" role="status" aria-live="polite"></p>
+      <input
+        id="login-password"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+
+      <button type="submit">Masuk</button>
+      <p id="login-message" role="status"></p>
     </form>
-    <div class="login-security"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Akses aman untuk pengguna terdaftar</div>
   </div>
-  <p class="login-footer">© GA Management · General Affairs Operations</p>
 </div>
 
-
-
 <div class="app" id="app-content" hidden>
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-icon"><i class="fa-solid fa-leaf"></i></div>
-      <div><h2>GA<span>Management</span></h2><small>GENERAL AFFAIRS SYSTEM</small></div>
+  <header class="app-header">
+    <button type="button" class="brand-block" id="homeButton" aria-label="Kembali ke beranda">
+      <span class="brand-icon"><i class="fa-solid fa-leaf"></i></span>
+      <span class="brand-text"><strong>GA Management</strong><small>后勤管理 · General Affairs</small></span>
+    </button>
+    <div class="top-actions">
+      <div class="menu-anchor">
+        <button type="button" class="header-button" id="bellButton" aria-label="Notifikasi" aria-haspopup="true" aria-expanded="false"><i class="fa-regular fa-bell"></i><span class="bell-badge" id="bellBadge" hidden>0</span></button>
+        <div class="dropdown bell-panel" id="bellPanel" hidden></div>
+      </div>
+      <div class="menu-anchor">
+        <button type="button" class="top-avatar" id="avatarButton" aria-label="Menu profil" aria-haspopup="true" aria-expanded="false">GA</button>
+        <div class="dropdown profile-menu" id="profileMenu" hidden>
+          <div class="profile-head"><strong id="menuName">Pengguna</strong><small id="menuRole"></small></div>
+          <button type="button" class="menu-item" data-profile-action="settings"><i class="fa-solid fa-gear"></i> Pengaturan</button>
+          <button type="button" class="menu-item" data-profile-action="profile"><i class="fa-regular fa-user"></i> Profil</button>
+          <button type="button" class="menu-item" data-profile-action="users"><i class="fa-solid fa-users-gear"></i> Pengguna Akses</button>
+          <button type="button" class="menu-item" data-profile-action="reports"><i class="fa-solid fa-chart-pie"></i> Laporan</button>
+          <button type="button" class="menu-item danger" id="logout-button"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
     </div>
-    <div class="profile">
-      <div class="avatar">GA</div>
-      <div><strong>GA Administrator</strong><small>Internal Management</small></div>
-      <i class="fa-solid fa-chevron-down"></i>
-    </div>
-    <p class="nav-label">MAIN MENU</p>
-    <nav>
-      <button class="nav-link active" data-ga-admin-allowed onclick="showPage('dashboard',this)"><i class="fa-solid fa-grid-2"></i> Dashboard</button>
-      <button class="nav-link" data-ga-admin-allowed onclick="showPage('inventory',this)"><i class="fa-solid fa-boxes-stacked"></i> Inventory & Stok</button>
-      <button class="nav-link" onclick="showPage('assets',this)"><i class="fa-solid fa-laptop"></i> Aset Perusahaan</button>
-      <button class="nav-link" onclick="showPage('vehicles',this)"><i class="fa-solid fa-car"></i> Kendaraan</button>
-      <button class="nav-link" data-ga-admin-allowed data-employee-allowed onclick="showPage('repairs',this)"><i class="fa-solid fa-screwdriver-wrench"></i> Fasilitas & Perbaikan</button>
-      <button class="nav-link" data-ga-admin-allowed data-employee-allowed onclick="showPage('requests',this)"><i class="fa-solid fa-clipboard-list"></i> Permintaan Karyawan</button>
-      <button class="nav-link" onclick="showPage('accommodation',this)"><i class="fa-solid fa-house"></i> Mess & Akomodasi</button>
-      <button class="nav-link" data-ga-admin-allowed onclick="showPage('canteen',this)"><i class="fa-solid fa-utensils"></i> Kantin</button>
-      <button class="nav-link" data-ga-admin-allowed onclick="showPage('vendors',this)"><i class="fa-solid fa-truck-field"></i> Vendor</button>
-      <p class="nav-label">SYSTEM</p>
-      <button class="nav-link" onclick="showPage('reports',this)"><i class="fa-solid fa-chart-pie"></i> Laporan</button>
-      <button class="nav-link" data-main-admin-only onclick="showPage('users',this)"><i class="fa-solid fa-users-gear"></i> Pengguna & Akses</button>
-    </nav>
-    <div class="sidebar-bottom"><i class="fa-solid fa-shield-halved"></i><span>GA Management v1.0<small>Internal workspace</small></span></div>
-    <button type="button" id="logout-button">
-  <i class="fa-solid fa-right-from-bracket"></i>
-  Keluar
-</button>
-  </aside>
+  </header>
   <main class="main">
-    <header class="topbar">
-      <div><span class="breadcrumb">Workspace /</span> <strong id="pageBreadcrumb">Dashboard</strong></div>
-      <div class="top-actions"><button class="icon-button" title="Notifikasi"><i class="fa-regular fa-bell"></i></button><div class="top-avatar">GA</div></div>
-    </header>
     <div class="content">
-      <section class="page active" id="page-dashboard">
-        <div class="welcome"><div><span class="eyebrow">GENERAL AFFAIRS OVERVIEW</span><h1>GA Dashboard</h1><p>Selamat datang! Pantau operasional General Affairs dari satu tempat.</p></div><div class="date-label"><i class="fa-regular fa-calendar"></i> <span id="todayDate"></span></div></div>
-        <div class="stats">
-          <article class="stat-card"><div class="stat-top"><span>Total Barang</span><div class="stat-icon sage"><i class="fa-solid fa-boxes-stacked"></i></div></div><h2 id="totalItems">0</h2><small>Jenis barang terdaftar</small></article>
-          <article class="stat-card"><div class="stat-top"><span>Total Aset</span><div class="stat-icon sand"><i class="fa-solid fa-laptop"></i></div></div><h2 id="totalAssets">0</h2><small>Aset perusahaan terdaftar</small></article>
-          <article class="stat-card"><div class="stat-top"><span>Stok Menipis</span><div class="stat-icon orange"><i class="fa-solid fa-triangle-exclamation"></i></div></div><h2 id="lowStock">0</h2><small>Perlu segera diperiksa</small></article>
-          <article class="stat-card"><div class="stat-top"><span>Permintaan Pending</span><div class="stat-icon blue"><i class="fa-solid fa-clock"></i></div></div><h2 id="pendingRequests">0</h2><small>Menunggu tindak lanjut</small></article>
-        </div>
-        <div class="dashboard-grid">
-          <article class="panel"><div class="panel-heading"><div><h3>Aktivitas Terbaru</h3><p>Riwayat aktivitas sistem</p></div><i class="fa-solid fa-clock-rotate-left"></i></div><div id="recentActivity" class="empty-state"><i class="fa-solid fa-inbox"></i><p>Belum ada aktivitas.</p><small>Transaksi yang kamu catat akan muncul di sini.</small></div></article>
-          <article class="panel quick-panel"><div class="panel-heading"><div><h3>Akses Cepat</h3><p>Mulai pekerjaan GA</p></div><i class="fa-solid fa-bolt"></i></div><button class="quick-link" onclick="showPage('inventory')"><span class="quick-icon"><i class="fa-solid fa-arrow-right-arrow-left"></i></span><span><strong>Transaksi Stok</strong><small>Catat barang masuk atau keluar</small></span><i class="fa-solid fa-chevron-right"></i></button><button class="quick-link" onclick="showPage('assets')"><span class="quick-icon"><i class="fa-solid fa-laptop"></i></span><span><strong>Tambah Aset</strong><small>Daftarkan aset perusahaan</small></span><i class="fa-solid fa-chevron-right"></i></button><button class="quick-link" onclick="showPage('requests')"><span class="quick-icon"><i class="fa-solid fa-clipboard-check"></i></span><span><strong>Permintaan</strong><small>Periksa permintaan karyawan</small></span><i class="fa-solid fa-chevron-right"></i></button></article>
-        </div>
+      <div class="page-back" id="pageBack" hidden><button type="button" id="backButton"><i class="fa-solid fa-arrow-left"></i> <span id="backLabel">Beranda</span></button></div>
+      <section class="page active" id="page-home">
+        <h2 class="home-title" id="homeTitle">MENU</h2>
+        <div class="tile-grid" id="tileGrid"></div>
+        <p class="home-note"><i class="fa-solid fa-circle-info"></i> Pilih menu untuk membuka modul. Hak akses mengikuti akun.</p>
+      </section>
+      <section class="page" id="page-inventory-hub">
+        <h2 class="home-title">INVENTORY &amp; STOK <small>出入库 · Pilih layanan</small></h2>
+        <div class="tile-grid two" id="hubGrid"></div>
+      </section>
+      <section class="page" id="page-settings">
+        <div class="page-heading"><div><span class="eyebrow">SETTINGS</span><h1>Pengaturan</h1><p>Pengaturan operasional GA.</p></div></div>
         <article class="panel" id="handoverSettingsPanel" hidden>
           <div class="panel-heading"><div><h3>Jadwal Penyerahan Barang</h3><p>Karyawan memilih salah satu jam di bawah saat mengajukan permintaan barang (maksimal 3 pilihan).</p></div><i class="fa-regular fa-clock"></i></div>
           <div class="slot-settings">
@@ -106,8 +84,12 @@
           </div>
           <button type="button" class="primary-button" id="saveSlotsButton"><i class="fa-solid fa-check"></i> Simpan Jadwal</button>
         </article>
-        <article class="panel"><div class="panel-heading"><div><h3>Ringkasan Stok</h3><p>Barang yang membutuhkan perhatian</p></div><button class="text-button" onclick="showPage('inventory')">Lihat semua <i class="fa-solid fa-arrow-right"></i></button></div><div class="table-wrap"><table><thead><tr><th>Nama Barang</th><th>Kategori</th><th>Stok</th><th>Minimum</th><th>Status</th></tr></thead><tbody id="dashboardStock"><tr><td colspan="5" class="empty-cell">Belum ada data barang.</td></tr></tbody></table></div></article>
+        <p class="notice" id="settingsEmpty" hidden><i class="fa-solid fa-circle-info"></i> Belum ada pengaturan yang tersedia untuk akun Anda.</p>
       </section>
+      <div id="legacyDashboard" hidden>
+        <span id="totalItems"></span><span id="totalAssets"></span><span id="lowStock"></span><span id="pendingRequests"></span><span id="todayDate"></span>
+        <div id="recentActivity"></div><table><tbody id="dashboardStock"></tbody></table>
+      </div>
       <section class="page" id="page-inventory">
         <div class="page-heading"><div><span class="eyebrow">INVENTORY CONTROL</span><h1>Inventory & Stok</h1><p>Kelola barang habis pakai serta transaksi barang masuk dan keluar.</p></div></div>
         <div class="stats compact-stats"><article class="stat-card"><span>Jenis Barang</span><h2 id="inventoryCount">0</h2></article><article class="stat-card"><span>Total Unit Stok</span><h2 id="stockUnits">0</h2></article><article class="stat-card"><span>Stok Menipis</span><h2 id="inventoryLow">0</h2></article></div>
@@ -156,10 +138,6 @@
         <div class="page-heading"><div><span class="eyebrow">FLEET MANAGEMENT</span><h1>Kendaraan</h1><p>Kelola kendaraan operasional dan status pemakaiannya.</p></div><button class="primary-button" onclick="openForm('vehicles')"><i class="fa-solid fa-plus"></i> Tambah Kendaraan</button></div>
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nomor Polisi</th><th>Jenis Kendaraan</th><th>Merek/Model</th><th>Lokasi</th><th>Pengguna</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div></article>
       </section>
-      <section class="page" id="page-facilities">
-        <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p>Catat kerusakan dan pantau proses perbaikan fasilitas.</p></div><button class="primary-button" onclick="openForm('facilities')"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
-        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Fasilitas</th><th>Lokasi</th><th>Kerusakan</th><th>Prioritas</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="facilityTable"></tbody></table></div></article>
-      </section>
       <section class="page" id="page-repairs">
         <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p id="repairSubtitle">Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.</p></div><button class="primary-button" id="newRepairButton"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
         <article class="panel"><div class="toolbar"><input id="repairSearch" type="search" placeholder="Cari tiket, lokasi, atau masalah..." aria-label="Cari laporan" autocomplete="off"><select id="repairFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pelapor</th><th>Kategori / Lokasi</th><th>Masalah</th><th>Urgensi</th><th>Pelaksana</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="repairTable"><tr><td colspan="9" class="empty-cell">Memuat laporan...</td></tr></tbody></table></div></article>
@@ -174,12 +152,8 @@
           <article class="panel"><div class="toolbar"><select id="requestFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Diserahkan</option><option>Ditolak</option><option>Dibatalkan</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pemohon</th><th>Barang</th><th>Jumlah</th><th>Jadwal Penyerahan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="firebaseRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
         </div>
       </section>
-      <section class="page" id="page-accommodation">
-        <div class="page-heading"><div><span class="eyebrow">ACCOMMODATION</span><h1>Mess & Akomodasi</h1><p>Kelola lokasi mess, kamar, dan status hunian.</p></div><button class="primary-button" onclick="openForm('accommodation')"><i class="fa-solid fa-plus"></i> Tambah Data</button></div>
-        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Lokasi Mess</th><th>Nomor Kamar</th><th>Kapasitas</th><th>Terisi</th><th>Penanggung Jawab</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="accommodationTable"></tbody></table></div></article>
-      </section>
-      <section class="page" id="page-canteen">
-        <div class="page-heading"><div><span class="eyebrow">CANTEEN SERVICES</span><h1>Kantin</h1><p>Pantau operasional kantin dan catatan layanan.</p></div><button class="primary-button" onclick="openForm('canteen')"><i class="fa-solid fa-plus"></i> Tambah Catatan</button></div>
+            <section class="page" id="page-canteen">
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDERS</span><h1>Pesan Makan Siang &amp; Malam</h1><p>Kelola pesanan makan siang dan malam serta catatan layanan.</p></div><button class="primary-button" onclick="openForm('canteen')"><i class="fa-solid fa-plus"></i> Tambah Catatan</button></div>
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis Catatan</th><th>Detail</th><th>Vendor</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="canteenTable"></tbody></table></div></article>
       </section>
       <section class="page" id="page-vendors">
@@ -192,9 +166,9 @@
         <article class="panel"><div class="panel-heading"><div><h3>Catatan</h3><p>Gunakan tabel inventaris dan riwayat transaksi untuk memeriksa data.</p></div></div><p class="report-note">Pastikan setiap barang masuk dan keluar dicatat agar jumlah stok tetap akurat.</p></article>
       </section>
       <section class="page" id="page-users">
-        <div class="page-heading"><div><span class="eyebrow">ACCESS MANAGEMENT</span><h1>Pengguna & Akses</h1><p>Rancangan peran untuk sistem GA.</p></div></div>
-        <div class="role-grid"><article class="panel"><i class="fa-solid fa-user-shield role-icon"></i><h3>GA Administrator</h3><p>Akses penuh ke inventaris, aset, transaksi, dan laporan.</p><span class="status-badge">Admin internal</span></article><article class="panel"><i class="fa-solid fa-user role-icon"></i><h3>Karyawan</h3><p>Mengajukan kebutuhan dan melihat status permintaan.</p><span class="status-badge neutral">Employee Portal</span></article><article class="panel"><i class="fa-solid fa-truck role-icon"></i><h3>Vendor</h3><p>Melihat pesanan dan pekerjaan yang ditujukan kepada vendor.</p><span class="status-badge neutral">Vendor Portal</span></article></div>
-        <p class="notice"><i class="fa-solid fa-circle-info"></i> Halaman ini adalah rancangan peran, belum merupakan sistem login atau pembatasan akses sungguhan.</p>
+        <div class="page-heading"><div><span class="eyebrow">ACCESS</span><h1>Pengguna Akses</h1><p>Akun yang sedang masuk dan pengaturan hak akses.</p></div></div>
+        <article class="panel"><div class="panel-heading"><div><h3>Akun yang sedang masuk</h3><p>Sesi aktif di perangkat ini.</p></div><i class="fa-solid fa-circle-user"></i></div><div id="currentSession" class="session-card"></div></article>
+        <article class="panel" id="accessManager" hidden><div class="panel-heading"><div><h3>Hak akses admin</h3><p>Atur menu yang boleh dikelola setiap admin. Pencabutan berlaku langsung.</p></div><i class="fa-solid fa-user-shield"></i></div><div class="table-wrap"><table><thead><tr><th>Nama</th><th>Role</th><th>Akses Menu</th><th>Aksi</th></tr></thead><tbody id="accessTable"><tr><td colspan="4" class="empty-cell">Memuat pengguna...</td></tr></tbody></table></div></article>
       </section>
       <footer>GA Management <span>•</span> General Affairs Operations</footer>
     </div>
@@ -213,20 +187,7 @@
 <script type="module" src="assets-firebase.js"></script>
 <script type="module" src="requests-firebase.js"></script>
 <script type="module" src="repairs-firebase.js"></script>
+<script type="module" src="shell.js"></script>
 <script type="module" src="import-inventory.js"></script>
-<script>
-(function () {
-  const toggle = document.getElementById("login-toggle-password");
-  const password = document.getElementById("login-password");
-  if (!toggle || !password) return;
-  toggle.addEventListener("click", function () {
-    const visible = password.type === "password";
-    password.type = visible ? "text" : "password";
-    toggle.setAttribute("aria-label", visible ? "Sembunyikan password" : "Tampilkan password");
-    toggle.setAttribute("aria-pressed", String(visible));
-    toggle.querySelector("i").className = visible ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
-  });
-})();
-</script>
 </body>
 </html>
