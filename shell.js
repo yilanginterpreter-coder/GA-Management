@@ -63,6 +63,7 @@ let generation = 0;
 let currentPage = "home";
 let bellTimer = null;
 let data = { service: [], repairs: [], access: [] };
+let notifFilter = "all"; // "all" | "unread"
 
 const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
 const isMain = () => profile?.role === "main_admin";
@@ -170,6 +171,7 @@ function goto(page) {
 
   if (page === "users") renderUsersPage();
   if (page === "settings") renderSettingsPage();
+  if (page === "notifications") renderNotificationsPage();
 
   if (typeof window.renderAll === "function") {
     try { window.renderAll(); } catch (error) { console.error(error); }
@@ -604,9 +606,46 @@ async function savePermissions(userId, permissions) {
   await renderUsersPage();
 }
 
-/* ---------- Lonceng notifikasi ---------- */
+/* ---------- Lonceng & Halaman Notifikasi ---------- */
 
-const seenKey = () => `ga_seen_${user?.uid}`;
+const readNotifsKey = () => `ga_read_notifs_${user?.uid}`;
+
+function getReadNotifs() {
+  if (!user) return new Set();
+  try {
+    const raw = localStorage.getItem(readNotifsKey());
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveReadNotifs(set) {
+  if (!user) return;
+  try {
+    localStorage.setItem(readNotifsKey(), JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+function markNotifAsRead(id) {
+  const read = getReadNotifs();
+  if (!read.has(id)) {
+    read.add(id);
+    saveReadNotifs(read);
+    updateBadge();
+    if (currentPage === "notifications") renderNotificationsPage();
+  }
+}
+
+function markAllNotifsAsRead() {
+  const list = bellList();
+  const read = getReadNotifs();
+  list.forEach(item => read.add(item.id));
+  saveReadNotifs(read);
+  updateBadge();
+  if (currentPage === "notifications") renderNotificationsPage();
+  toast("Semua notifikasi ditandai sudah dibaca.");
+}
 
 function seconds(ts) {
   return ts?.seconds || (ts?.toDate ? ts.toDate().getTime() / 1000 : 0);
@@ -676,19 +715,66 @@ function bellList() {
 
 function updateBadge() {
   const badge = $("bellBadge");
-  if (!badge) return;
+  const unreadBadge = $("notifUnreadCount");
 
   const list = bellList();
-  let count = list.length;
+  const read = getReadNotifs();
+  const unreadCount = list.filter(item => !read.has(item.id)).length;
 
-  if (!isStaff()) {
-    let seen = 0;
-    try { seen = Number(localStorage.getItem(seenKey())) || 0; } catch {}
-    count = list.filter(i => seconds(i.ts) > seen).length;
+  if (badge) {
+    badge.hidden = unreadCount === 0;
+    badge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
   }
 
-  badge.hidden = count === 0;
-  badge.textContent = count > 99 ? "99+" : String(count);
+  if (unreadBadge) {
+    unreadBadge.hidden = unreadCount === 0;
+    unreadBadge.textContent = String(unreadCount);
+  }
+}
+
+function renderNotificationsPage() {
+  const container = $("notificationsList");
+  if (!container) return;
+
+  const list = bellList();
+  const readSet = getReadNotifs();
+
+  const filtered = list.filter(item => {
+    if (notifFilter === "unread") return !readSet.has(item.id);
+    return true;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="notif-empty">${
+      notifFilter === "unread" ? "Tidak ada notifikasi belum dibaca." : "Belum ada notifikasi."
+    }</div>`;
+    updateBadge();
+    return;
+  }
+
+  container.innerHTML = filtered.map(item => {
+    const isRead = readSet.has(item.id);
+    return `
+      <div class="notif-page-item${isRead ? " read" : " unread"}" data-kind="${esc(item.kind)}" data-id="${esc(item.id)}">
+        <span class="notif-icon"><i class="fa-solid ${esc(item.icon)}"></i></span>
+        <div class="notif-content">
+          <div class="notif-title-row">
+            <strong>${esc(item.title)}</strong>
+            <span class="notif-time">${esc(timeAgo(item.ts))}</span>
+          </div>
+          <p class="notif-sub">${esc(item.sub)}</p>
+          ${item.kind === "access" && isMain()
+            ? `<div class="notif-actions">
+                 <button type="button" class="small-action" data-access-act="Disetujui" data-id="${esc(item.id)}">Setujui</button>
+                 <button type="button" class="small-action delete" data-access-act="Ditolak" data-id="${esc(item.id)}">Tolak</button>
+               </div>`
+            : ""}
+        </div>
+        ${!isRead ? `<span class="notif-unread-dot" title="Belum dibaca"></span>` : ""}
+      </div>`;
+  }).join("");
+
+  updateBadge();
 }
 
 function renderBell() {
@@ -758,6 +844,7 @@ async function loadBell() {
     }
 
     renderBell();
+    if (currentPage === "notifications") renderNotificationsPage();
   } catch (error) {
     if (current !== generation) return;
     console.warn("Notifikasi tidak dapat dimuat:", error?.code || error?.message);
@@ -797,36 +884,33 @@ async function decideAccess(id, decision) {
   if (currentPage === "users") renderUsersPage();
 }
 
-function onBellClick(event) {
-  const act = event.target.closest("[data-access-act]");
-  if (act) {
-    event.stopPropagation();
-    act.disabled = true;
-    decideAccess(act.dataset.id, act.dataset.accessAct).catch(error => {
-      console.error(error);
-      toast(errorText(error));
-      act.disabled = false;
-    });
-    return;
-  }
-
-  const item = event.target.closest(".bell-item");
-  if (!item) return;
-
-  const kind = item.dataset.kind;
-  closeMenus();
+function handleNotifItemClick(kind, id) {
+  markNotifAsRead(id);
 
   if (kind === "access") {
     if (isMain()) goto("users");
     return;
   }
 
-  if (!isStaff()) return goto(kind);
+  if (kind === "requests") {
+    const item = data.service.find(x => x.id === id);
+    if (typeof window.openRequestDetail === "function" && item) {
+      window.openRequestDetail(item);
+    } else {
+      goto("requests");
+    }
+    return;
+  }
 
-  // Staf: butuh hak akses menu yang bersangkutan.
-  const key = kind === "requests" ? "requests" : "repairs";
-  if (can(key)) goto(kind);
-  else askAccess(key);
+  if (kind === "repairs") {
+    const item = data.repairs.find(x => x.id === id);
+    if (typeof window.openRepairDetail === "function" && item) {
+      window.openRepairDetail(item);
+    } else {
+      goto("repairs");
+    }
+    return;
+  }
 }
 
 function startBellTimer() {
@@ -847,15 +931,41 @@ $("backButton")?.addEventListener("click", () => {
 
 $("bellButton")?.addEventListener("click", event => {
   event.stopPropagation();
-  const opened = toggleMenu("bellPanel", "bellButton");
-  if (opened) {
-    renderBell();
-    loadBell();
-    if (!isStaff() && user) {
-      try { localStorage.setItem(seenKey(), String(Math.floor(Date.now() / 1000))); } catch {}
-      updateBadge();
-    }
+  goto("notifications");
+});
+
+document.querySelectorAll("[data-notif-filter]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-notif-filter]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    notifFilter = btn.dataset.notifFilter;
+    renderNotificationsPage();
+  });
+});
+
+$("markAllReadButton")?.addEventListener("click", () => {
+  markAllNotifsAsRead();
+});
+
+$("notificationsList")?.addEventListener("click", event => {
+  const act = event.target.closest("[data-access-act]");
+  if (act) {
+    event.stopPropagation();
+    act.disabled = true;
+    decideAccess(act.dataset.id, act.dataset.accessAct).catch(error => {
+      console.error(error);
+      toast(errorText(error));
+      act.disabled = false;
+    });
+    return;
   }
+
+  const item = event.target.closest(".notif-page-item");
+  if (!item) return;
+
+  const kind = item.dataset.kind;
+  const id = item.dataset.id;
+  handleNotifItemClick(kind, id);
 });
 
 $("avatarButton")?.addEventListener("click", event => {

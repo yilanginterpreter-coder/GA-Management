@@ -68,6 +68,12 @@
         <h2 class="home-title" id="homeTitle">MENU</h2>
         <div class="tile-grid" id="tileGrid"></div>
         <p class="home-note"><i class="fa-solid fa-circle-info"></i> Pilih menu untuk membuka modul. Hak akses mengikuti akun.</p>
+        <footer class="admin-home-footer">
+          <div class="admin-footer-title">GA Management · 后勤管理 · General Affairs Management System</div>
+          <p class="admin-footer-quote">"Satu sistem untuk pengelolaan operasional yang lebih teratur, transparan, dan efisien."</p>
+          <p class="admin-footer-dev">Designed &amp; Developed by 亿朗</p>
+          <p class="admin-footer-copy">&copy; 2026 GA Management · Internal Management System</p>
+        </footer>
       </section>
       <section class="page" id="page-inventory-hub">
         <h2 class="home-title">INVENTORY &amp; STOK <small>出入库 · Pilih layanan</small></h2>
@@ -164,6 +170,29 @@
         <div class="page-heading"><div><span class="eyebrow">REPORT CENTER</span><h1>Laporan</h1><p>Ringkasan data operasional GA.</p></div><button class="secondary-button" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak Laporan</button></div>
         <div class="stats"><article class="stat-card"><span>Jenis Barang</span><h2 id="reportItems">0</h2></article><article class="stat-card"><span>Total Unit Stok</span><h2 id="reportStock">0</h2></article><article class="stat-card"><span>Total Aset</span><h2 id="reportAssets">0</h2></article><article class="stat-card"><span>Total Transaksi</span><h2 id="reportTransactions">0</h2></article></div>
         <article class="panel"><div class="panel-heading"><div><h3>Catatan</h3><p>Gunakan tabel inventaris dan riwayat transaksi untuk memeriksa data.</p></div></div><p class="report-note">Pastikan setiap barang masuk dan keluar dicatat agar jumlah stok tetap akurat.</p></article>
+      </section>
+      <section class="page" id="page-notifications">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">NOTIFICATIONS</span>
+            <h1>Notifikasi</h1>
+            <p>Pemberitahuan aktivitas laporan perbaikan, permintaan barang, dan akses sistem.</p>
+          </div>
+          <div class="heading-actions">
+            <button type="button" class="secondary-button" id="markAllReadButton"><i class="fa-solid fa-check-double"></i> Tandai Semua Dibaca</button>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="toolbar notif-toolbar">
+            <div class="notif-filter-tabs">
+              <button type="button" class="notif-tab active" data-notif-filter="all">Semua</button>
+              <button type="button" class="notif-tab" data-notif-filter="unread">Belum Dibaca <span class="notif-count-badge" id="notifUnreadCount" hidden>0</span></button>
+            </div>
+          </div>
+          <div class="notif-list" id="notificationsList">
+            <div class="empty-cell">Memuat notifikasi...</div>
+          </div>
+        </article>
       </section>
       <section class="page" id="page-users">
         <div class="page-heading"><div><span class="eyebrow">ACCESS</span><h1>Pengguna Akses</h1><p>Akun yang sedang masuk dan pengaturan hak akses.</p></div></div>

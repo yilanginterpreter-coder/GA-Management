@@ -710,6 +710,33 @@ async function openOrder(itemId) {
   );
 }
 
+export function openRequestDetail(r) {
+  if (!r) return message("Permintaan tidak ditemukan.");
+  const lines = [
+    ["Tiket", r.ticketNo],
+    ["Pemohon", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
+    ["Barang", `${r.itemCode} — ${r.itemName}`],
+    ["Spesifikasi", items.find(i => i.id === r.itemId)?.specification || "-"],
+    ["Jumlah", `${r.quantity} ${r.unit}`],
+    ["Jadwal penyerahan", scheduleText(r)],
+    ["Alasan kebutuhan", r.reason],
+    ["Status", r.status],
+    ["Catatan / alasan", r.statusNote || "-"],
+    ["Diproses oleh", r.reviewedByName || "-"],
+    ["Diserahkan oleh", r.handedOverByName || "-"]
+  ];
+  openModal(
+    "Detail Permintaan",
+    lines.map(([label, value]) =>
+      field(label, `<div>${esc(value ?? "-")}</div>`)
+    ).join(""),
+    "",
+    null
+  );
+}
+
+window.openRequestDetail = openRequestDetail;
+
 function openAction(action, id) {
   const r = requests.find(x => x.id === id);
   if (!r) return message("Permintaan tidak ditemukan.");
@@ -719,27 +746,7 @@ function openAction(action, id) {
     `<br><small>Penyerahan: ${esc(scheduleText(r))}</small>`;
 
   if (action === "detail") {
-    const lines = [
-      ["Tiket", r.ticketNo],
-      ["Pemohon", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
-      ["Barang", `${r.itemCode} — ${r.itemName}`],
-      ["Spesifikasi", items.find(i => i.id === r.itemId)?.specification || "-"],
-      ["Jumlah", `${r.quantity} ${r.unit}`],
-      ["Jadwal penyerahan", scheduleText(r)],
-      ["Alasan kebutuhan", r.reason],
-      ["Status", r.status],
-      ["Catatan / alasan", r.statusNote || "-"],
-      ["Diproses oleh", r.reviewedByName || "-"],
-      ["Diserahkan oleh", r.handedOverByName || "-"]
-    ];
-    openModal(
-      "Detail Permintaan",
-      lines.map(([label, value]) =>
-        field(label, `<div>${esc(value ?? "-")}</div>`)
-      ).join(""),
-      "",
-      null
-    );
+    openRequestDetail(r);
   } else if (action === "approve") {
     openModal(
       "Setujui Permintaan",
