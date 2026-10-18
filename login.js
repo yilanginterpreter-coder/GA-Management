@@ -28,6 +28,18 @@ const passwordInput = document.getElementById("login-password");
 const loginMessage = document.getElementById("login-message");
 const appContent = document.getElementById("app-content");
 const logoutButton = document.getElementById("logout-button");
+const togglePasswordBtn = document.getElementById("togglePassword");
+const togglePasswordIcon = document.getElementById("togglePasswordIcon");
+const submitBtn = document.getElementById("login-submit-btn");
+
+if (togglePasswordBtn && passwordInput && togglePasswordIcon) {
+  togglePasswordBtn.addEventListener("click", () => {
+    const isPassword = passwordInput.type === "password";
+    passwordInput.type = isPassword ? "text" : "password";
+    togglePasswordIcon.className = isPassword ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
+    togglePasswordBtn.setAttribute("aria-label", isPassword ? "Sembunyikan password" : "Tampilkan password");
+  });
+}
 
 
 async function readInventoryFromFirestore() {
@@ -148,9 +160,10 @@ async function saveStockTransactionToFirestore(data) {
     });
   });
 }
-function showMessage(message) {
+function showMessage(message, type = "") {
   if (loginMessage) {
     loginMessage.textContent = message;
+    loginMessage.className = "login-message " + (type ? `type-${type}` : "");
   }
 }
 
@@ -225,7 +238,12 @@ async function checkUserRole(user) {
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showMessage("Sedang masuk...");
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add("loading");
+    }
+    showMessage("Sedang masuk, mohon tunggu...", "info");
 
     try {
       await authPersistenceReady;
@@ -239,25 +257,32 @@ if (loginForm) {
       await credential.user.reload();
 
       if (!credential.user.emailVerified) {
-  await sendEmailVerification(credential.user);
-  await signOut(auth);
-  showLogin("Email verifikasi sudah dikirim. Periksa kotak masuk atau folder Spam.");
-  return;
-}
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        showLogin("Email verifikasi sudah dikirim. Periksa kotak masuk atau folder Spam.", "warning");
+        return;
+      }
 
       await checkUserRole(credential.user);
-      showMessage("Login berhasil.");
+      showMessage("Login berhasil, mengalihkan...", "success");
     } catch (error) {
       console.error("Login gagal:", error.code || error.message);
 
       await signOut(auth).catch(() => {});
 
       if (error.message === "ROLE_NOT_FOUND") {
-        showLogin("Akun belum diberi akses oleh Main Admin.");
+        showLogin("Akun belum diberi akses oleh Main Admin.", "error");
       } else if (error.message === "ROLE_INVALID") {
-        showLogin("Akun tidak aktif atau role tidak valid.");
+        showLogin("Akun tidak aktif atau role tidak valid.", "error");
+      } else if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        showLogin("Email atau password tidak sesuai. Periksa kembali data Anda.", "error");
       } else {
-        showLogin("Login gagal. Periksa email, password, dan akses akun.");
+        showLogin("Login gagal. Periksa email, password, dan koneksi internet Anda.", "error");
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("loading");
       }
     }
   });
