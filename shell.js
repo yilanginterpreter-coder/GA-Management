@@ -270,8 +270,9 @@ async function renderEmployeeHistory(filter = "all") {
 
   try {
     const uid = user.uid;
-    const [serviceSnap, repairSnap, vehicleSnap] = await Promise.all([
+    const [serviceSnap, prSnap, repairSnap, vehicleSnap] = await Promise.all([
       getDocs(query(collection(db, "serviceRequests"), where("requesterUid", "==", uid))),
+      getDocs(query(collection(db, "procurementRequisitions"), where("requesterUid", "==", uid))),
       getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid))),
       getDocs(query(collection(db, "vehicleRequests"), where("requesterUid", "==", uid)))
     ]);
@@ -287,6 +288,19 @@ async function renderEmployeeHistory(filter = "all") {
           rawDate: seconds(item.createdAt),
           desc: `${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
           status: item.status || "Pending"
+        });
+      });
+    }
+
+    if (filter === "all" || filter === "procurement") {
+      prSnap.docs.forEach(d => {
+        const item = d.data();
+        list.push({
+          type: "Pembelian (PR)",
+          date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
+          rawDate: seconds(item.createdAt),
+          desc: `${item.prNo || "PR"} — ${item.itemName || item.title || "Pengadaan Barang"}`,
+          status: item.status || "Diajukan"
         });
       });
     }

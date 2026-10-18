@@ -71,7 +71,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       // Main admin can write any user document
-      allow create: if isMainAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.keys().hasAny(['role', 'active', 'permissions']));
+      allow create: if isMainAdmin() || (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        !request.resource.data.keys().hasAny(['role', 'active', 'permissions', 'vendorId'])
+      );
       allow update: if isMainAdmin() || (
         isAuthenticated() &&
         request.auth.uid == userId &&
@@ -215,8 +219,8 @@ service cloud.firestore {
         (
           hasVendorId() &&
           resource.data.vendorId == getVendorId() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'vendorNotes', 'updatedAt']) &&
-          request.resource.data.status in ['Diproses Vendor', 'Dikirim Vendor', 'Selesai']
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'vendorDeliveryNote', 'shipmentNotes', 'updatedAt']) &&
+          request.resource.data.status in ['Vendor Confirmed', 'Shipped / In Progress', 'Delivered']
         )
       );
       allow delete: if isMainAdmin();
