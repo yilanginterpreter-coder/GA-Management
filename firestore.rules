@@ -88,7 +88,7 @@ service cloud.firestore {
               || (
                 !("permissions" in u)
                 && u.role == "ga_admin"
-                && key in ["inventory", "requests", "repairs", "procurement", "vendors", "vehicles", "assets"]
+                && key in ["inventory", "requests", "repairs"]
               )
             )
           )

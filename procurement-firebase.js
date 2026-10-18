@@ -116,13 +116,12 @@ async function loadVendorPortalData() {
   if (!table) return;
 
   try {
-    let q;
-    if (vendorId) {
-      q = query(collection(db, "purchaseOrders"), where("vendorId", "==", vendorId));
-    } else {
-      q = query(collection(db, "purchaseOrders"));
+    if (!vendorId) {
+      table.innerHTML = `<tr><td colspan="6" class="empty-cell">Akun vendor Anda belum dihubungkan ke Master Vendor. Hubungi Main Admin.</td></tr>`;
+      return;
     }
 
+    const q = query(collection(db, "purchaseOrders"), where("vendorId", "==", vendorId));
     const snap = await getDocs(q);
     const pos = snap.docs.map(d => ({ ...d.data(), id: d.id }));
 
@@ -496,7 +495,9 @@ $("poTable")?.addEventListener("click", async event => {
               note: `Penerimaan PO ${po.poNo} - Surat Jalan: ${data.deliveryNoteNo}`,
               createdBy: user.uid,
               createdByName: profile.name,
-              createdAt: serverTimestamp()
+              createdByRole: profile.role,
+              createdAt: serverTimestamp(),
+              testOnly: false
             });
 
             transaction.set(grRef, {
