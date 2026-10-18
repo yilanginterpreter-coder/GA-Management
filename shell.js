@@ -981,7 +981,24 @@ $("avatarButton")?.addEventListener("click", event => {
 
 $("bellPanel")?.addEventListener("click", event => {
   event.stopPropagation();
-  onBellClick(event);
+  const act = event.target.closest("[data-access-act]");
+  if (act) {
+    act.disabled = true;
+    decideAccess(act.dataset.id, act.dataset.accessAct).catch(error => {
+      console.error(error);
+      toast(errorText(error));
+      act.disabled = false;
+    });
+    return;
+  }
+
+  const item = event.target.closest(".bell-item");
+  if (!item) return;
+
+  const kind = item.dataset.kind;
+  const id = item.dataset.id;
+  closeMenus();
+  handleNotifItemClick(kind, id);
 });
 
 $("profileMenu")?.addEventListener("click", event => {
