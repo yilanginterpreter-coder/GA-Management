@@ -463,6 +463,16 @@ async function createRepair(data, photo) {
     updatedAt: serverTimestamp()
   });
 
+  if (typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: user.uid,
+      title: "Laporan Kerusakan Terkirim",
+      body: `Laporan #${ticket} (${category} - ${location}) berhasil dikirim.`,
+      type: "repair",
+      requestId: ticket
+    });
+  }
+
   return `Laporan ${ticket} berhasil dikirim.`;
 }
 
@@ -484,11 +494,22 @@ function checkNote(note, required, label) {
 
 async function reviewRepair(id, decision, note) {
   const text = checkNote(note, decision === "Ditolak", "Alasan penolakan wajib diisi.");
+  const req = repairs.find(x => x.id === id);
 
   await updateDoc(doc(db, "repairRequests", id), {
     status: decision,
     ...stamp(text)
   });
+
+  if (req && typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: req.requesterUid,
+      title: `Laporan Perbaikan ${decision}`,
+      body: `Laporan #${req.ticketNo || id} (${req.category}) telah ${decision.toLowerCase()}.${text ? ` Catatan: ${text}` : ""}`,
+      type: "repair",
+      requestId: req.ticketNo || id
+    });
+  }
 
   return decision === "Disetujui" ? "Laporan disetujui." : "Laporan ditolak.";
 }
@@ -505,6 +526,7 @@ async function startRepair(id, data) {
   }
 
   const text = checkNote(data.note, false);
+  const req = repairs.find(x => x.id === id);
 
   await updateDoc(doc(db, "repairRequests", id), {
     status: "Dikerjakan",
@@ -512,6 +534,16 @@ async function startRepair(id, data) {
     vendorName,
     ...stamp(text)
   });
+
+  if (req && typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: req.requesterUid,
+      title: "Laporan Perbaikan Dikerjakan",
+      body: `Laporan #${req.ticketNo || id} sedang dikerjakan oleh ${executor === "Vendor" ? `Vendor ${vendorName}` : "Tim Internal GA"}.`,
+      type: "repair",
+      requestId: req.ticketNo || id
+    });
+  }
 
   return "Perbaikan mulai dikerjakan.";
 }
@@ -568,6 +600,16 @@ async function finishRepair(id, data, photo) {
     ...stamp(prev?.statusNote || "")
   });
 
+  if (prev && typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: prev.requesterUid,
+      title: "Laporan Perbaikan Selesai",
+      body: `Laporan #${prev.ticketNo || id} telah selesai dikerjakan.`,
+      type: "repair",
+      requestId: prev.ticketNo || id
+    });
+  }
+
   return "Laporan ditandai selesai.";
 }
 
@@ -607,8 +649,14 @@ function photoBlock(src, label) {
     : "";
 }
 
-export function openRepairDetail(r) {
+export async function openRepairDetail(r) {
   if (!r) return message("Laporan tidak ditemukan.");
+
+  let headerHTML = "";
+  if (r.requesterUid && typeof window.buildRequesterHeaderHTML === "function") {
+    headerHTML = await window.buildRequesterHeaderHTML(r.requesterUid, r.requesterName, r.department);
+  }
+
   const lines = [
     ["Tiket", r.ticketNo],
     ["Pelapor", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
@@ -633,6 +681,7 @@ export function openRepairDetail(r) {
 
   openModal(
     "Detail Laporan",
+    headerHTML +
     lines.map(([label, value]) =>
       field(label, `<div>${esc(value ?? "-")}</div>`)
     ).join("") +

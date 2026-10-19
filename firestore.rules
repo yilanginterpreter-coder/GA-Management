@@ -997,6 +997,15 @@ service cloud.firestore {
       allow create, update, delete: if isMain() || hasPerm("procurement") || hasPerm("requests");
     }
 
+    match /notifications/{notifId} {
+      allow get, list: if activeUser() && resource.data.recipientUid == request.auth.uid;
+      allow create: if activeUser();
+      allow update: if activeUser()
+        && resource.data.recipientUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read", "updatedAt"]);
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
