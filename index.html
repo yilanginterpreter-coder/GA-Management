@@ -108,7 +108,6 @@
     <div class="content">
       <div class="page-back" id="pageBack" hidden><button type="button" id="backButton"><i class="fa-solid fa-arrow-left"></i> <span id="backLabel">Beranda</span></button></div>
       <section class="page active" id="page-home">
-        <div id="employeeWelcomeWidget" hidden></div>
         <h2 class="home-title" id="homeTitle">MENU</h2>
         <div class="tile-grid" id="tileGrid"></div>
         <p class="home-note"><i class="fa-solid fa-circle-info"></i> Pilih menu untuk membuka modul. Hak akses mengikuti akun.</p>
@@ -247,11 +246,20 @@
         <div class="page-heading"><div><span class="eyebrow">FLEET MANAGEMENT</span><h1>Kendaraan</h1><p>Kelola kendaraan operasional dan status pemakaiannya.</p></div><button class="primary-button" onclick="openForm('vehicles')"><i class="fa-solid fa-plus"></i> Tambah Kendaraan</button></div>
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nomor Polisi</th><th>Jenis Kendaraan</th><th>Merek/Model</th><th>Lokasi</th><th>Pengguna</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div></article>
       </section>
+      <section class="page" id="page-vehicle-hub">
+        <h2 class="home-title">KENDARAAN <small>车辆 · Pilih layanan</small></h2>
+        <div class="tile-grid two" id="vehicleHubGrid"></div>
+      </section>
+      <section class="page" id="page-vehicle-requests">
+        <div class="page-heading"><div><span class="eyebrow">VEHICLE REQUEST</span><h1>Permintaan Kendaraan</h1><p id="vehicleSubtitle">Ajukan kendaraan untuk keperluan operasional dan pantau statusnya.</p></div><button class="primary-button" id="newVehicleRequestButton"><i class="fa-solid fa-plus"></i> Ajukan Kendaraan</button></div>
+        <article class="panel"><div class="toolbar"><input id="vehicleSearch" type="search" placeholder="Cari tiket, tujuan, atau kendaraan..." aria-label="Cari permintaan" autocomplete="off"><select id="vehicleFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Pemohon</th><th>Tujuan</th><th>Jadwal</th><th>Penumpang</th><th>Kendaraan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
+      </section>
       <section class="page" id="page-repairs">
         <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p id="repairSubtitle">Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.</p></div><button class="primary-button" id="newRepairButton"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
         <article class="panel"><div class="toolbar"><input id="repairSearch" type="search" placeholder="Cari tiket, lokasi, atau masalah..." aria-label="Cari laporan" autocomplete="off"><select id="repairFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pelapor</th><th>Kategori / Lokasi</th><th>Masalah</th><th>Urgensi</th><th>Pelaksana</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="repairTable"><tr><td colspan="9" class="empty-cell">Memuat laporan...</td></tr></tbody></table></div></article>
       </section>
       <section class="page" id="page-requests">
+        <div id="employeeWelcomeWidget" hidden></div>
         <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.</p></div></div>
         <div class="request-tabs"><button type="button" class="primary-button" id="tabCatalog"><i class="fa-solid fa-store"></i> Katalog Barang</button><button type="button" class="secondary-button" id="tabRequests"><i class="fa-solid fa-clipboard-list"></i> Status Permintaan</button></div>
         <div id="catalogView">
@@ -365,32 +373,20 @@
         <article class="panel"><div class="panel-heading"><div><h3>Catatan</h3><p>Gunakan tabel inventaris dan riwayat transaksi untuk memeriksa data.</p></div></div><p class="report-note">Pastikan setiap barang masuk dan keluar dicatat agar jumlah stok tetap akurat.</p></article>
       </section>
       <section class="page" id="page-history">
-        <div class="page-header">
-          <h2>Riwayat Pengajuan Karyawan</h2>
-          <p>Daftar seluruh riwayat pengajuan barang, laporan perbaikan, dan kendaraan Anda.</p>
+        <div class="page-heading"><div><span class="eyebrow">MY ACTIVITY</span><h1>Riwayat</h1><p>Semua pengajuan Anda beserta status dan hasilnya.</p></div></div>
+        <div class="chip-bar" id="historyFilters">
+          <button type="button" class="chip active" data-history-filter="all">Semua</button>
+          <button type="button" class="chip" data-history-filter="service">Barang</button>
+          <button type="button" class="chip" data-history-filter="repair">Perbaikan</button>
+          <button type="button" class="chip" data-history-filter="vehicle">Kendaraan</button>
+          <button type="button" class="chip" data-history-filter="procurement">Pembelian</button>
         </div>
-        <div class="filter-bar" style="margin-bottom: 16px; display: flex; gap: 8px;">
-          <button type="button" class="secondary-button active" data-history-filter="all">Semua</button>
-          <button type="button" class="secondary-button" data-history-filter="service">Barang</button>
-          <button type="button" class="secondary-button" data-history-filter="procurement">Pembelian (PR)</button>
-          <button type="button" class="secondary-button" data-history-filter="repair">Perbaikan</button>
-          <button type="button" class="secondary-button" data-history-filter="vehicle">Kendaraan</button>
-        </div>
-        <div class="table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Tanggal</th>
-                <th>Kategori / Jenis</th>
-                <th>Rincian</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="employeeHistoryTable">
-              <tr><td colspan="4" class="empty-cell">Memuat riwayat...</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="history-list" id="employeeHistoryList"><p class="catalog-empty">Memuat riwayat...</p></div>
+      </section>
+      <section class="page" id="page-profile">
+        <div class="page-heading"><div><span class="eyebrow">MY ACCOUNT</span><h1>Profil</h1><p>Informasi akun Anda.</p></div></div>
+        <article class="panel profile-card" id="profileCard"></article>
+        <button type="button" class="secondary-button profile-logout" id="profileLogoutButton"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
       </section>
 
       <section class="page" id="page-notifications">
@@ -462,6 +458,7 @@
 <script type="module" src="assets-firebase.js"></script>
 <script type="module" src="requests-firebase.js"></script>
 <script type="module" src="repairs-firebase.js"></script>
+<script type="module" src="vehicles-firebase.js"></script>
 <script type="module" src="shell.js"></script>
 <script type="module" src="procurement-firebase.js"></script>
 <script type="module" src="import-inventory.js"></script>
