@@ -91,7 +91,7 @@
         <button type="button" class="header-button" id="bellButton" aria-label="Notifikasi" aria-haspopup="true" aria-expanded="false"><i class="fa-regular fa-bell"></i><span class="bell-badge" id="bellBadge" hidden>0</span></button>
         <div class="dropdown bell-panel" id="bellPanel" hidden></div>
       </div>
-      <div class="menu-anchor">
+      <div class="menu-anchor" id="avatarMenuAnchor">
         <button type="button" class="top-avatar" id="avatarButton" aria-label="Menu profil" aria-haspopup="true" aria-expanded="false">GA</button>
         <div class="dropdown profile-menu" id="profileMenu" hidden>
           <div class="profile-head"><strong id="menuName">Pengguna</strong><small id="menuRole"></small></div>
@@ -244,8 +244,80 @@
         <article class="panel"><div class="toolbar"><input id="assetSearch" placeholder="Cari kode, nama, atau lokasi..."></div><div class="table-wrap"><table><thead><tr><th>Kode Aset</th><th>Nama Aset</th><th>Kategori</th><th>Lokasi</th><th>Penanggung Jawab</th><th>Kondisi</th><th>Aksi</th></tr></thead><tbody id="assetTable"></tbody></table></div></article>
       </section>
       <section class="page" id="page-vehicles">
-        <div class="page-heading"><div><span class="eyebrow">FLEET MANAGEMENT</span><h1>Kendaraan</h1><p>Kelola kendaraan operasional dan status pemakaiannya.</p></div><button class="primary-button" onclick="openForm('vehicles')"><i class="fa-solid fa-plus"></i> Tambah Kendaraan</button></div>
-        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nomor Polisi</th><th>Jenis Kendaraan</th><th>Merek/Model</th><th>Lokasi</th><th>Pengguna</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div></article>
+        <div class="page-heading"><div><span class="eyebrow">FLEET MANAGEMENT</span><h1>Kendaraan & Armada Operasional</h1><p>Kelola armada kendaraan operasional, persetujuan penugasan, dan status pemakaian.</p></div><button class="primary-button" onclick="openForm('vehicles')"><i class="fa-solid fa-plus"></i> Tambah Kendaraan</button></div>
+
+        <article class="panel" style="margin-bottom: 24px;">
+          <div class="panel-heading">
+            <div>
+              <h3>Permintaan Kendaraan Karyawan</h3>
+              <p>Review, setujui, tolak, dan tugaskan kendaraan &amp; driver untuk pengajuan perjalanan dinas karyawan.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tiket</th>
+                  <th>Tanggal</th>
+                  <th>Pemohon / Dept</th>
+                  <th>Penjemputan &amp; Tujuan</th>
+                  <th>Jadwal &amp; Durasi</th>
+                  <th>Penumpang</th>
+                  <th>Penugasan (Mobil / Driver)</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="adminVehicleRequestsTable">
+                <tr><td colspan="9" class="empty-cell">Memuat permintaan kendaraan...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Master Data Kendaraan Operasional</h3>
+              <p>Daftar fisik armada kendaraan dan status ketersediaannya.</p>
+            </div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Nomor Polisi</th><th>Jenis Kendaraan</th><th>Merek/Model</th><th>Lokasi</th><th>Pengguna</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div>
+        </article>
+      </section>
+
+      <section class="page" id="page-employee-vehicles">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">EMPLOYEE VEHICLE SERVICES</span>
+            <h1>Permintaan Kendaraan Operasional</h1>
+            <p>Ajukan pemesanan kendaraan dinas / operasional perusahaan dan pantau status persetujuannya.</p>
+          </div>
+          <button type="button" class="primary-button" id="newEmployeeVehicleBtn">
+            <i class="fa-solid fa-car"></i> Ajukan Permintaan Kendaraan
+          </button>
+        </div>
+        <article class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tiket / Tgl</th>
+                  <th>Penjemputan &amp; Tujuan</th>
+                  <th>Tgl &amp; Jam Keberangkatan</th>
+                  <th>Durasi &amp; Penumpang</th>
+                  <th>Keperluan</th>
+                  <th>Kendaraan / Driver</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="employeeVehicleRequestsTable">
+                <tr><td colspan="8" class="empty-cell">Memuat pengajuan kendaraan Anda...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
       </section>
       <section class="page" id="page-repairs">
         <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p id="repairSubtitle">Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.</p></div><button class="primary-button" id="newRepairButton"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
@@ -384,10 +456,11 @@
                 <th>Kategori / Jenis</th>
                 <th>Rincian</th>
                 <th>Status</th>
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody id="employeeHistoryTable">
-              <tr><td colspan="4" class="empty-cell">Memuat riwayat...</td></tr>
+              <tr><td colspan="5" class="empty-cell">Memuat riwayat...</td></tr>
             </tbody>
           </table>
         </div>

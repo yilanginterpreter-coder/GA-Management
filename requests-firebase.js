@@ -553,6 +553,16 @@ async function createRequest(item, data) {
     updatedAt: serverTimestamp()
   });
 
+  if (typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: user.uid,
+      title: "Permintaan Barang Terkirim",
+      body: `Permintaan #${ticket} (${item.name}) berhasil diajukan dan menunggu persetujuan Admin GA.`,
+      type: "service",
+      requestId: ticket
+    });
+  }
+
   setTab("requests");
   return `Permintaan ${ticket} berhasil diajukan.`;
 }
@@ -565,6 +575,8 @@ async function reviewRequest(id, decision, note) {
     throw new Error("Alasan penolakan wajib diisi.");
   }
 
+  const req = requests.find(x => x.id === id);
+
   await updateDoc(doc(db, "serviceRequests", id), {
     status: decision,
     statusNote: text,
@@ -573,6 +585,16 @@ async function reviewRequest(id, decision, note) {
     reviewedAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
+
+  if (req && typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: req.requesterUid,
+      title: `Permintaan Barang ${decision}`,
+      body: `Permintaan #${req.ticketNo || id} (${req.itemName}) telah ${decision.toLowerCase()}.${text ? ` Catatan: ${text}` : ""}`,
+      type: "service",
+      requestId: req.ticketNo || id
+    });
+  }
 
   return decision === "Disetujui"
     ? "Permintaan disetujui."
@@ -660,6 +682,17 @@ async function handoverRequest(id) {
     });
   });
 
+  const req = requests.find(x => x.id === id);
+  if (req && typeof window.sendNotification === "function") {
+    await window.sendNotification({
+      recipientUid: req.requesterUid,
+      title: "Barang Diserahkan",
+      body: `Barang ${req.itemName} (${req.quantity} ${req.unit}) untuk tiket #${req.ticketNo || id} telah diserahkan oleh GA.`,
+      type: "service",
+      requestId: req.ticketNo || id
+    });
+  }
+
   return "Barang diserahkan dan stok sudah dikurangi.";
 }
 
@@ -716,8 +749,14 @@ async function openOrder(itemId) {
   );
 }
 
-export function openRequestDetail(r) {
+export async function openRequestDetail(r) {
   if (!r) return message("Permintaan tidak ditemukan.");
+
+  let headerHTML = "";
+  if (r.requesterUid && typeof window.buildRequesterHeaderHTML === "function") {
+    headerHTML = await window.buildRequesterHeaderHTML(r.requesterUid, r.requesterName, r.department);
+  }
+
   const lines = [
     ["Tiket", r.ticketNo],
     ["Pemohon", `${r.requesterName || "-"}${r.department ? ` (${r.department})` : ""}`],
@@ -733,6 +772,7 @@ export function openRequestDetail(r) {
   ];
   openModal(
     "Detail Permintaan",
+    headerHTML +
     lines.map(([label, value]) =>
       field(label, `<div>${esc(value ?? "-")}</div>`)
     ).join(""),

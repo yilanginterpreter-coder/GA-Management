@@ -174,6 +174,8 @@ function goto(page) {
   if (page === "settings") renderSettingsPage();
   if (page === "notifications") renderNotificationsPage();
   if (page === "history") renderEmployeeHistory();
+  if (page === "employee-vehicles") renderEmployeeVehiclePage();
+  if (page === "vehicles") renderAdminVehiclePage();
 
   if (typeof window.renderAll === "function") {
     try { window.renderAll(); } catch (error) { console.error(error); }
@@ -285,11 +287,14 @@ async function renderEmployeeHistory(filter = "all") {
     serviceRes.value.docs.forEach(d => {
       const item = d.data();
       list.push({
+        id: d.id,
+        raw: item,
+        kind: "service",
         type: "Permintaan Barang",
         date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
         rawDate: seconds(item.createdAt),
-        desc: `${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
-        status: item.status || "Pending"
+        desc: `${item.ticketNo || d.id} — ${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
+        status: item.status || "Menunggu"
       });
     });
   } else if (serviceRes.status === "rejected") {
@@ -301,10 +306,13 @@ async function renderEmployeeHistory(filter = "all") {
     prRes.value.docs.forEach(d => {
       const item = d.data();
       list.push({
+        id: d.id,
+        raw: item,
+        kind: "procurement",
         type: "Pembelian (PR)",
         date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
         rawDate: seconds(item.createdAt),
-        desc: `${item.prNo || "PR"} — ${item.itemName || item.title || "Pengadaan Barang"}`,
+        desc: `${item.prNo || "PR"} — ${item.itemName || item.title || (item.items?.[0]?.itemName) || "Pengadaan Barang"}`,
         status: item.status || "Diajukan"
       });
     });
@@ -317,11 +325,14 @@ async function renderEmployeeHistory(filter = "all") {
     repairRes.value.docs.forEach(d => {
       const item = d.data();
       list.push({
+        id: d.id,
+        raw: item,
+        kind: "repair",
         type: "Lapor Perbaikan",
         date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
         rawDate: seconds(item.createdAt),
-        desc: `${item.category || "-"} — ${item.location || "-"}`,
-        status: item.status || "Pending"
+        desc: `${item.ticketNo || d.id} — ${item.category || "-"} (${item.location || "-"})`,
+        status: item.status || "Baru"
       });
     });
   } else if (repairRes.status === "rejected") {
@@ -333,10 +344,13 @@ async function renderEmployeeHistory(filter = "all") {
     vehicleRes.value.docs.forEach(d => {
       const item = d.data();
       list.push({
+        id: d.id,
+        raw: item,
+        kind: "vehicle",
         type: "Permintaan Kendaraan",
         date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
         rawDate: seconds(item.createdAt),
-        desc: `${item.vehicleName || "Kendaraan Dinas"} — Tujuan: ${item.destination || "-"}`,
+        desc: `${item.ticketNo || d.id} — ${item.destination || "Tujuan"} (${item.travelDate || "-"})`,
         status: item.status || "Pending"
       });
     });
@@ -346,20 +360,22 @@ async function renderEmployeeHistory(filter = "all") {
   }
 
   list.sort((a, b) => b.rawDate - a.rawDate);
+  window.__historyList = list;
 
   if (list.length > 0) {
-    tbody.innerHTML = list.map(item => `
+    tbody.innerHTML = list.map((item, idx) => `
       <tr>
         <td>${esc(item.date)}</td>
         <td><strong>${esc(item.type)}</strong></td>
         <td>${esc(item.desc)}</td>
-        <td><span class="status-badge">${esc(item.status)}</span></td>
+        <td>${badge(item.status)}</td>
+        <td><button type="button" class="small-action" data-hist-idx="${idx}">Detail</button></td>
       </tr>
-    `).join("") + (hasError ? `<tr><td colspan="4" class="notice" style="text-align:center"><small><i class="fa-solid fa-triangle-exclamation"></i> Sebagian riwayat tidak dapat dimuat karena kendala izin atau koneksi.</small></td></tr>` : "");
+    `).join("") + (hasError ? `<tr><td colspan="5" class="notice" style="text-align:center"><small><i class="fa-solid fa-triangle-exclamation"></i> Sebagian riwayat tidak dapat dimuat karena kendala izin atau koneksi.</small></td></tr>` : "");
   } else if (hasError) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat sebagian riwayat. Pastikan firestore.rules mengizinkan akses.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">Gagal memuat sebagian riwayat. Pastikan firestore.rules mengizinkan akses.</td></tr>`;
   } else {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Belum ada riwayat pengajuan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">Belum ada riwayat pengajuan.</td></tr>`;
   }
 }
 
@@ -398,26 +414,53 @@ async function renderEmployeeHomeWidget() {
     const aSnap = await getDocs(query(collection(db, "announcements"), where("active", "==", true)));
     if (!aSnap.empty) {
       const anns = aSnap.docs.map(d => d.data());
-      announcementsHTML = `
-        <div style="margin-top: 15px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
-          <strong style="color: #A3E635; display:block; margin-bottom: 4px;"><i class="fa-solid fa-bullhorn"></i> Pengumuman GA:</strong>
-          ${anns.slice(0, 2).map(a => `<div style="font-size: 0.85rem; margin-top: 4px;"><strong>${esc(a.title)}:</strong> ${esc(a.content)}</div>`).join("")}
+      announcementsHTML = anns.slice(0, 3).map(a => `
+        <div class="announcement-card-item">
+          <div class="announcement-head">
+            <strong class="announcement-title"><i class="fa-solid fa-bullhorn"></i> ${esc(a.title)}</strong>
+            <span class="status-badge">${esc(a.category || "Umum")}</span>
+          </div>
+          <p class="announcement-content">${esc(a.content)}</p>
+          <small class="announcement-date"><i class="fa-regular fa-clock"></i> ${esc(a.date || "")}</small>
         </div>
-      `;
+      `).join("");
     }
   } catch (err) {
     console.warn("Could not load announcements:", err);
   }
 
+  if (!announcementsHTML) {
+    announcementsHTML = `
+      <div class="announcement-card-item">
+        <div class="announcement-head">
+          <strong class="announcement-title"><i class="fa-solid fa-bullhorn"></i> Informasi Operasional GA</strong>
+          <span class="status-badge">Operasional</span>
+        </div>
+        <p class="announcement-content">Pengajuan barang, laporan perbaikan fasilitas, dan booking kendaraan operasional dapat dilakukan langsung melalui navigasi bawah. Tim GA siap membantu kebutuhan operasional Anda.</p>
+      </div>
+    `;
+  }
+
   widget.innerHTML = `
     <div class="employee-welcome-card">
-      <div class="greeting-title">Selamat Datang, ${esc(profile?.name || "Karyawan")}!</div>
-      <div class="greeting-date"><i class="fa-regular fa-calendar-days"></i> ${esc(dateStr)}</div>
-      <div class="employee-quote-box">
-        "${esc(quoteText)}"
-        <small>— ${esc(quoteAuthor)}</small>
+      <div class="greeting-header" style="margin-bottom: 12px;">
+        <h2 class="greeting-title" style="font-size: 1.35rem; font-weight: 700; margin: 0 0 4px 0;">Selamat Datang, ${esc(profile?.name || "Karyawan")}!</h2>
+        <div class="greeting-date" style="font-size: 0.88rem; color: #D1E7DD;"><i class="fa-regular fa-calendar-days"></i> ${esc(dateStr)} ${profile?.department ? `· ${esc(profile.department)}` : ""}</div>
       </div>
-      ${announcementsHTML}
+
+      <div class="employee-quote-box" style="margin-bottom: 16px;">
+        <div style="font-size: 0.95rem; font-weight: 500;">"${esc(quoteText)}"</div>
+        <small style="display: block; text-align: right; margin-top: 4px; color: #A3E635;">— ${esc(quoteAuthor)}</small>
+      </div>
+
+      <div class="employee-news-box">
+        <h3 style="font-size: 1rem; font-weight: 600; color: #A3E635; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-newspaper"></i> Pengumuman & Informasi GA
+        </h3>
+        <div class="announcement-container" style="display: flex; flex-direction: column; gap: 10px;">
+          ${announcementsHTML}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -425,6 +468,7 @@ async function renderEmployeeHomeWidget() {
 function renderHome() {
   const grid = $("tileGrid");
   const title = $("homeTitle");
+  const homeNote = document.querySelector(".home-note");
   if (!grid) return;
 
   if (!profile) {
@@ -435,27 +479,24 @@ function renderHome() {
   const welcomeWidget = $("employeeWelcomeWidget");
   const bottomNav = $("mobileBottomNav");
 
-  if (profile.role === "employee" || profile.role === "vendor") {
+  if (profile.role === "employee") {
     if (bottomNav) bottomNav.hidden = false;
     if (welcomeWidget) {
       welcomeWidget.hidden = false;
       renderEmployeeHomeWidget();
     }
-  } else {
+    if (title) title.hidden = true;
+    grid.hidden = true;
+    grid.innerHTML = "";
+    if (homeNote) homeNote.hidden = true;
+  } else if (profile.role === "vendor") {
     if (bottomNav) bottomNav.hidden = true;
     if (welcomeWidget) welcomeWidget.hidden = true;
-  }
-
-  if (isStaff()) {
     if (title) {
-      title.textContent = isMain() ? "MENU MAIN ADMIN" : "MENU ADMIN GA";
+      title.textContent = "MENU VENDOR PORTAL";
+      title.hidden = false;
     }
-    grid.innerHTML = STAFF_TILES.map((tile, i) => {
-      const allowed = tile.perm.some(can);
-      return tileHTML(tile, !allowed, i, "staff");
-    }).join("");
-  } else if (profile.role === "vendor") {
-    if (title) title.textContent = "MENU VENDOR PORTAL";
+    grid.hidden = false;
     grid.innerHTML = `
       <button type="button" class="tile" data-group="vendor" data-index="0">
         <i class="fa-solid fa-store tile-icon" aria-hidden="true"></i>
@@ -463,11 +504,21 @@ function renderHome() {
         <small>Daftar PO & Katalog Vendor</small>
       </button>
     `;
+    if (homeNote) homeNote.hidden = false;
   } else {
-    if (title) title.textContent = "Layanan Karyawan";
-    grid.innerHTML = EMPLOYEE_TILES.map((tile, i) =>
-      tileHTML(tile, false, i, "employee")
-    ).join("");
+    // Admin / Staff roles
+    if (bottomNav) bottomNav.hidden = true;
+    if (welcomeWidget) welcomeWidget.hidden = true;
+    if (title) {
+      title.textContent = isMain() ? "MENU MAIN ADMIN" : "MENU ADMIN GA";
+      title.hidden = false;
+    }
+    grid.hidden = false;
+    grid.innerHTML = STAFF_TILES.map((tile, i) => {
+      const allowed = tile.perm.some(can);
+      return tileHTML(tile, !allowed, i, "staff");
+    }).join("");
+    if (homeNote) homeNote.hidden = false;
   }
 
   const hub = $("hubGrid");
@@ -519,7 +570,14 @@ const safePhoto = value =>
 
 function renderAvatar() {
   const button = $("avatarButton");
+  const anchor = $("avatarMenuAnchor") || button?.closest(".menu-anchor");
   if (!button || !profile) return;
+
+  if (profile.role === "employee") {
+    if (anchor) anchor.hidden = true;
+  } else {
+    if (anchor) anchor.hidden = false;
+  }
 
   if (safePhoto(profile.photoData)) {
     button.innerHTML = `<img src="${esc(profile.photoData)}" alt="Foto profil">`;
@@ -941,6 +999,11 @@ function markNotifAsRead(id) {
     updateBadge();
     if (currentPage === "notifications") renderNotificationsPage();
   }
+  if (id && db) {
+    try {
+      updateDoc(doc(db, "notifications", id), { read: true, updatedAt: serverTimestamp() }).catch(() => {});
+    } catch {}
+  }
 }
 
 function markAllNotifsAsRead() {
@@ -999,6 +1062,29 @@ function bellList() {
   }
 
   const list = [];
+
+  if (data.notifications && data.notifications.length > 0) {
+    for (const n of data.notifications) {
+      let icon = "fa-bell";
+      if (n.type === "service" || n.type === "requests") icon = "fa-clipboard-list";
+      else if (n.type === "repair" || n.type === "repairs") icon = "fa-screwdriver-wrench";
+      else if (n.type === "vehicle" || n.type === "vehicles") icon = "fa-car";
+      else if (n.type === "procurement") icon = "fa-file-invoice";
+
+      list.push({
+        kind: n.type || "requests",
+        id: n.id,
+        ts: n.createdAt || n.updatedAt,
+        icon,
+        title: n.title || "Notifikasi GA",
+        sub: n.body || "",
+        read: n.read || false,
+        requestId: n.requestId || ""
+      });
+    }
+    return list.sort((a, b) => seconds(b.ts) - seconds(a.ts));
+  }
+
   for (const r of data.service.filter(x => x.status !== "Menunggu")) {
     list.push({
       kind: "requests", id: r.id, ts: r.updatedAt || r.createdAt,
@@ -1136,16 +1222,22 @@ async function loadBell() {
       };
     } else {
       const uid = user.uid;
-      const [service, repairs] = await Promise.all([
+      const [serviceRes, repairRes, notifsRes] = await Promise.allSettled([
         getDocs(query(collection(db, "serviceRequests"), where("requesterUid", "==", uid))),
-        getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid)))
+        getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid))),
+        getDocs(query(collection(db, "notifications"), where("recipientUid", "==", uid)))
       ]);
       if (current !== generation) return;
 
+      const serviceDocs = serviceRes.status === "fulfilled" ? serviceRes.value.docs.map(d => ({ ...d.data(), id: d.id })) : [];
+      const repairDocs = repairRes.status === "fulfilled" ? repairRes.value.docs.map(d => ({ ...d.data(), id: d.id })) : [];
+      const notifDocs = notifsRes.status === "fulfilled" ? notifsRes.value.docs.map(d => ({ ...d.data(), id: d.id })) : [];
+
       data = {
-        service: service.docs.map(d => ({ ...d.data(), id: d.id })),
-        repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
-        access: []
+        service: serviceDocs,
+        repairs: repairDocs,
+        access: [],
+        notifications: notifDocs
       };
     }
 
@@ -1230,7 +1322,505 @@ function startBellTimer() {
   bellTimer = setInterval(loadBell, BELL_REFRESH_MS);
 }
 
+/* ---------- Helper Profile Requester untuk Admin ---------- */
+
+const profileCache = new Map();
+
+async function getRequesterProfile(uid) {
+  if (!uid) return null;
+  if (profileCache.has(uid)) return profileCache.get(uid);
+
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      profileCache.set(uid, data);
+      return data;
+    }
+  } catch (err) {
+    console.warn("Could not load user profile for", uid, err);
+  }
+  return null;
+}
+
+async function buildRequesterHeaderHTML(requesterUid, fallbackName, fallbackDept) {
+  const p = await getRequesterProfile(requesterUid);
+  const name = p?.name || fallbackName || "Karyawan";
+  const dept = p?.department || fallbackDept || "-";
+  const username = p?.username ? `@${p.username}` : "-";
+  const photo = safePhoto(p?.photoData)
+    ? `<img src="${esc(p.photoData)}" alt="Foto profil" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`
+    : `<span style="width:48px;height:48px;border-radius:50%;background:#0D9488;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;">${esc(initials(name))}</span>`;
+
+  return `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;margin-bottom:16px;">
+      ${photo}
+      <div>
+        <strong style="font-size:0.98rem;display:block;">${esc(name)}</strong>
+        <small style="color:#64748B;">Departemen: ${esc(dept)} · ID: ${esc(username)}</small>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- Notifikasi Helper ---------- */
+
+async function sendNotification({ recipientUid, title, body, type, requestId }) {
+  if (!recipientUid) return;
+  try {
+    const notifRef = doc(collection(db, "notifications"));
+    await setDoc(notifRef, {
+      id: notifRef.id,
+      recipientUid,
+      title,
+      body,
+      type: type || "general",
+      requestId: requestId || "",
+      read: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.warn("Gagal mengirim notifikasi:", err);
+  }
+}
+
+/* ---------- Permintaan Kendaraan Karyawan & Admin ---------- */
+
+function newVehicleTicket() {
+  const d = new Date();
+  const ymd =
+    String(d.getFullYear()).slice(2) +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    String(d.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const random = Array.from(
+    crypto.getRandomValues(new Uint8Array(6)),
+    b => chars[b % chars.length]
+  ).join("");
+  return `VR-${ymd}-${random}`;
+}
+
+async function renderEmployeeVehiclePage() {
+  const tbody = $("employeeVehicleRequestsTable");
+  if (!tbody || !user) return;
+
+  try {
+    const snap = await getDocs(
+      query(collection(db, "vehicleRequests"), where("requesterUid", "==", user.uid))
+    );
+    const list = snap.docs
+      .map(d => ({ ...d.data(), id: d.id }))
+      .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt));
+
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">Belum ada pengajuan kendaraan. Silakan klik "Ajukan Permintaan Kendaraan".</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => `
+      <tr>
+        <td><strong>${esc(item.ticketNo || item.id)}</strong><br><small>${formatDate(item.createdAt)}</small></td>
+        <td><strong>Tujuan:</strong> ${esc(item.destination || "-")}<br><small><strong>Jemput:</strong> ${esc(item.pickupLocation || "-")}</small></td>
+        <td>${esc(item.travelDate || "-")} ${esc(item.departureTime || "")}</td>
+        <td>${esc(item.estimatedDuration || "-")} (${esc(item.passengerCount || 1)} orang)</td>
+        <td>${esc(item.purpose || "-")}</td>
+        <td>${esc(item.assignedVehicle || "Belum ditugaskan")}${item.driverName ? `<br><small>Driver: ${esc(item.driverName)}</small>` : ""}</td>
+        <td>${badge(item.status || "Pending")}</td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="small-action" data-veh-action="detail" data-id="${esc(item.id)}">Detail</button>
+            ${item.status === "Pending" ? `<button type="button" class="small-action delete" data-veh-action="cancel" data-id="${esc(item.id)}">Batal</button>` : ""}
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    window.__employeeVehicles = list;
+  } catch (err) {
+    console.error("Gagal memuat vehicleRequests karyawan:", err);
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">Gagal memuat data pengajuan kendaraan.</td></tr>`;
+  }
+}
+
+function openCreateVehicleRequestModal() {
+  if (!user || !profile) return toast("Silakan login terlebih dahulu.");
+
+  const todayStr = localDate();
+
+  showModal({
+    wide: true,
+    title: "Ajukan Permintaan Kendaraan Operasional",
+    body: `
+      <div class="form-fields">
+        <div class="field full"><label>Lokasi Penjemputan *</label><input id="vPickup" placeholder="Contoh: Kantor Utama / Lobby A" required></div>
+        <div class="field full"><label>Lokasi Tujuan *</label><input id="vDest" placeholder="Contoh: Bandara Soekarno-Hatta / Pabrik B" required></div>
+        <div class="field"><label>Tanggal Keberangkatan *</label><input id="vDate" type="date" min="${todayStr}" value="${todayStr}" required></div>
+        <div class="field"><label>Jam Keberangkatan *</label><input id="vTime" type="time" value="08:00" required></div>
+        <div class="field"><label>Perkiraan Durasi *</label><input id="vDuration" placeholder="Contoh: 3 Jam / 1 Hari" required></div>
+        <div class="field"><label>Jumlah Penumpang *</label><input id="vPassengers" type="number" min="1" value="1" required></div>
+        <div class="field full"><label>Keperluan / Tujuan Perjalanan *</label><textarea id="vPurpose" rows="3" placeholder="Jelaskan alasan dan agenda perjalanan dinas ini..." required></textarea></div>
+        <div class="field full"><label>Catatan Tambahan (Opsional)</label><textarea id="vNotes" rows="2" placeholder="Catatan khusus, barang bawaan, dll..."></textarea></div>
+      </div>
+    `,
+    actions: [
+      { label: "Batal" },
+      {
+        label: "Kirim Pengajuan",
+        cls: "primary-button",
+        onClick: async root => {
+          const pickupLocation = root.querySelector("#vPickup").value.trim();
+          const destination = root.querySelector("#vDest").value.trim();
+          const travelDate = root.querySelector("#vDate").value;
+          const departureTime = root.querySelector("#vTime").value;
+          const estimatedDuration = root.querySelector("#vDuration").value.trim();
+          const passengerCount = Number(root.querySelector("#vPassengers").value);
+          const purpose = root.querySelector("#vPurpose").value.trim();
+          const notes = root.querySelector("#vNotes").value.trim();
+
+          if (!pickupLocation || !destination || !travelDate || !departureTime || !estimatedDuration || !purpose) {
+            throw new Error("Mohon lengkapi seluruh kolom yang wajib diisi.");
+          }
+          if (!passengerCount || passengerCount < 1) {
+            throw new Error("Jumlah penumpang minimal 1 orang.");
+          }
+
+          const ticketNo = newVehicleTicket();
+          const docRef = doc(db, "vehicleRequests", ticketNo);
+
+          await setDoc(docRef, {
+            ticketNo,
+            type: "kendaraan",
+            requesterUid: user.uid,
+            requesterName: profile.name,
+            department: profile.department || "",
+            pickupLocation,
+            destination,
+            travelDate,
+            departureTime,
+            estimatedDuration,
+            passengerCount,
+            purpose,
+            notes,
+            status: "Pending",
+            assignedVehicle: "",
+            driverName: "",
+            statusNote: "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          await sendNotification({
+            recipientUid: user.uid,
+            title: `Permintaan Kendaraan Terkirim`,
+            body: `Pengajuan kendaraan #${ticketNo} ke ${destination} berhasil dikirim dan menunggu persetujuan Admin GA.`,
+            type: "vehicle",
+            requestId: ticketNo
+          });
+
+          toast("Permintaan kendaraan berhasil diajukan.");
+          renderEmployeeVehiclePage();
+        }
+      }
+    ]
+  });
+}
+
+async function renderAdminVehiclePage() {
+  const tbody = $("adminVehicleRequestsTable");
+  if (!tbody || !user || !isStaff()) return;
+
+  try {
+    const snap = await getDocs(collection(db, "vehicleRequests"));
+    const list = snap.docs
+      .map(d => ({ ...d.data(), id: d.id }))
+      .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt));
+
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-cell">Belum ada pengajuan kendaraan dari karyawan.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(item => `
+      <tr>
+        <td><strong>${esc(item.ticketNo || item.id)}</strong></td>
+        <td>${formatDate(item.createdAt)}</td>
+        <td><strong>${esc(item.requesterName)}</strong><br><small>${esc(item.department || "-")}</small></td>
+        <td><strong>Tujuan:</strong> ${esc(item.destination || "-")}<br><small><strong>Jemput:</strong> ${esc(item.pickupLocation || "-")}</small></td>
+        <td>${esc(item.travelDate || "-")} ${esc(item.departureTime || "")}<br><small>Durasi: ${esc(item.estimatedDuration || "-")}</small></td>
+        <td>${esc(item.passengerCount || 1)} Orang</td>
+        <td>${esc(item.assignedVehicle || "Belum ada")}${item.driverName ? `<br><small>Driver: ${esc(item.driverName)}</small>` : ""}</td>
+        <td>${badge(item.status || "Pending")}</td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="small-action" data-admin-veh="detail" data-id="${esc(item.id)}">Detail</button>
+            ${item.status === "Pending" ? `
+              <button type="button" class="small-action" data-admin-veh="approve" data-id="${esc(item.id)}">Setujui</button>
+              <button type="button" class="small-action delete" data-admin-veh="reject" data-id="${esc(item.id)}">Tolak</button>
+            ` : ""}
+            ${item.status === "Disetujui" ? `
+              <button type="button" class="small-action" data-admin-veh="finish" data-id="${esc(item.id)}">Selesai</button>
+            ` : ""}
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    window.__adminVehicles = list;
+  } catch (err) {
+    console.error("Gagal memuat vehicleRequests admin:", err);
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-cell">Gagal memuat pengajuan kendaraan. Pastikan hak akses kendaraan sesuai.</td></tr>`;
+  }
+}
+
+async function openVehicleRequestDetail(req) {
+  if (!req) return;
+  const headerHTML = await buildRequesterHeaderHTML(req.requesterUid, req.requesterName, req.department);
+
+  showModal({
+    wide: true,
+    title: `Detail Permintaan Kendaraan: ${req.ticketNo || req.id}`,
+    body: `
+      ${headerHTML}
+      <div class="form-fields">
+        <div class="field"><label>Tanggal Keberangkatan</label><div>${esc(req.travelDate || "-")} ${esc(req.departureTime || "")}</div></div>
+        <div class="field"><label>Perkiraan Durasi & Penumpang</label><div>${esc(req.estimatedDuration || "-")} (${esc(req.passengerCount || 1)} orang)</div></div>
+        <div class="field full"><label>Lokasi Penjemputan</label><div>${esc(req.pickupLocation || "-")}</div></div>
+        <div class="field full"><label>Lokasi Tujuan</label><div>${esc(req.destination || "-")}</div></div>
+        <div class="field full"><label>Keperluan</label><div>${esc(req.purpose || "-")}</div></div>
+        ${req.notes ? `<div class="field full"><label>Catatan</label><div>${esc(req.notes)}</div></div>` : ""}
+        <div class="field"><label>Status</label><div>${badge(req.status || "Pending")}</div></div>
+        <div class="field"><label>Kendaraan & Driver</label><div>${esc(req.assignedVehicle || "Belum ditugaskan")}${req.driverName ? ` (Driver: ${esc(req.driverName)})` : ""}</div></div>
+        ${req.statusNote ? `<div class="field full"><label>Catatan Admin</label><div>${esc(req.statusNote)}</div></div>` : ""}
+      </div>
+    `,
+    actions: [{ label: "Tutup", cls: "primary-button" }]
+  });
+}
+
+function openAdminVehicleAction(action, id) {
+  const req = (window.__adminVehicles || []).find(x => x.id === id);
+  if (!req) return toast("Data permintaan tidak ditemukan.");
+
+  if (action === "detail") {
+    openVehicleRequestDetail(req);
+    return;
+  }
+
+  if (action === "approve") {
+    showModal({
+      title: `Setujui Permintaan Kendaraan: ${req.ticketNo}`,
+      body: `
+        <p><small>Pemohon: ${esc(req.requesterName)} · Tujuan: ${esc(req.destination)} (${esc(req.travelDate)} ${esc(req.departureTime)})</small></p>
+        <div class="form-fields">
+          <div class="field full"><label>Tugaskan Kendaraan *</label><input id="vAssignCar" placeholder="Contoh: B 1234 ABC (Toyota Avanza)" required></div>
+          <div class="field full"><label>Nama Driver *</label><input id="vAssignDriver" placeholder="Contoh: Pak Budi (Driver GA)" required></div>
+          <div class="field full"><label>Catatan Tambahan (Opsional)</label><textarea id="vAssignNote" placeholder="Informasi lokasi penjemputan driver, dll..."></textarea></div>
+        </div>
+      `,
+      actions: [
+        { label: "Batal" },
+        {
+          label: "Setujui & Penugasan",
+          cls: "primary-button",
+          onClick: async root => {
+            const assignedVehicle = root.querySelector("#vAssignCar").value.trim();
+            const driverName = root.querySelector("#vAssignDriver").value.trim();
+            const statusNote = root.querySelector("#vAssignNote").value.trim();
+
+            if (!assignedVehicle || !driverName) {
+              throw new Error("Mohon lengkapi kendaraan dan nama driver.");
+            }
+
+            await updateDoc(doc(db, "vehicleRequests", id), {
+              status: "Disetujui",
+              assignedVehicle,
+              driverName,
+              statusNote,
+              updatedAt: serverTimestamp()
+            });
+
+            await sendNotification({
+              recipientUid: req.requesterUid,
+              title: "Permintaan Kendaraan Disetujui",
+              body: `Pengajuan kendaraan #${req.ticketNo} telah disetujui. Kendaraan: ${assignedVehicle}, Driver: ${driverName}.`,
+              type: "vehicle",
+              requestId: req.ticketNo
+            });
+
+            toast("Permintaan disetujui dan kendaraan ditugaskan.");
+            renderAdminVehiclePage();
+          }
+        }
+      ]
+    });
+  } else if (action === "reject") {
+    showModal({
+      title: `Tolak Permintaan Kendaraan: ${req.ticketNo}`,
+      body: `
+        <div class="form-fields">
+          <div class="field full"><label>Alasan Penolakan *</label><textarea id="vRejectNote" placeholder="Tuliskan alasan penolakan..." required></textarea></div>
+        </div>
+      `,
+      actions: [
+        { label: "Batal" },
+        {
+          label: "Tolak Pengajuan",
+          cls: "secondary-button",
+          onClick: async root => {
+            const statusNote = root.querySelector("#vRejectNote").value.trim();
+            if (!statusNote) throw new Error("Alasan penolakan wajib diisi.");
+
+            await updateDoc(doc(db, "vehicleRequests", id), {
+              status: "Ditolak",
+              statusNote,
+              updatedAt: serverTimestamp()
+            });
+
+            await sendNotification({
+              recipientUid: req.requesterUid,
+              title: "Permintaan Kendaraan Ditolak",
+              body: `Pengajuan kendaraan #${req.ticketNo} ditolak. Alasan: ${statusNote}`,
+              type: "vehicle",
+              requestId: req.ticketNo
+            });
+
+            toast("Permintaan kendaraan ditolak.");
+            renderAdminVehiclePage();
+          }
+        }
+      ]
+    });
+  } else if (action === "finish") {
+    showModal({
+      title: `Selesaikan Perjalanan Kendaraan: ${req.ticketNo}`,
+      body: `<p>Tandai perjalanan dinas ini telah selesai?</p>`,
+      actions: [
+        { label: "Batal" },
+        {
+          label: "Tandai Selesai",
+          cls: "primary-button",
+          onClick: async () => {
+            await updateDoc(doc(db, "vehicleRequests", id), {
+              status: "Selesai",
+              updatedAt: serverTimestamp()
+            });
+
+            await sendNotification({
+              recipientUid: req.requesterUid,
+              title: "Perjalanan Kendaraan Selesai",
+              body: `Pengajuan kendaraan #${req.ticketNo} telah selesai. Terima kasih.`,
+              type: "vehicle",
+              requestId: req.ticketNo
+            });
+
+            toast("Perjalanan kendaraan ditandai selesai.");
+            renderAdminVehiclePage();
+          }
+        }
+      ]
+    });
+  }
+}
+
+async function openEmployeeVehicleCancel(id) {
+  const req = (window.__employeeVehicles || []).find(x => x.id === id);
+  if (!req) return;
+
+  showModal({
+    title: `Batalkan Permintaan Kendaraan: ${req.ticketNo}`,
+    body: `<p>Apakah Anda yakin ingin membatalkan pengajuan kendaraan ini?</p>`,
+    actions: [
+      { label: "Batal" },
+      {
+        label: "Ya, Batalkan",
+        cls: "secondary-button",
+        onClick: async () => {
+          await updateDoc(doc(db, "vehicleRequests", id), {
+            status: "Canceled",
+            updatedAt: serverTimestamp()
+          });
+
+          await sendNotification({
+            recipientUid: user.uid,
+            title: "Permintaan Kendaraan Dibatalkan",
+            body: `Pengajuan kendaraan #${req.ticketNo} telah dibatalkan.`,
+            type: "vehicle",
+            requestId: req.ticketNo
+          });
+
+          toast("Pengajuan kendaraan dibatalkan.");
+          renderEmployeeVehiclePage();
+        }
+      }
+    ]
+  });
+}
+
+window.buildRequesterHeaderHTML = buildRequesterHeaderHTML;
+window.sendNotification = sendNotification;
+
 /* ---------- Pasang ke halaman ---------- */
+
+$("newEmployeeVehicleBtn")?.addEventListener("click", openCreateVehicleRequestModal);
+
+$("employeeVehicleRequestsTable")?.addEventListener("click", event => {
+  const btn = event.target.closest("[data-veh-action]");
+  if (!btn) return;
+  const act = btn.dataset.vehAction;
+  const id = btn.dataset.id;
+  const list = window.__employeeVehicles || [];
+  const item = list.find(x => x.id === id);
+  if (act === "detail") openVehicleRequestDetail(item);
+  else if (act === "cancel") openEmployeeVehicleCancel(id);
+});
+
+$("adminVehicleRequestsTable")?.addEventListener("click", event => {
+  const btn = event.target.closest("[data-admin-veh]");
+  if (!btn) return;
+  const act = btn.dataset.adminVeh;
+  const id = btn.dataset.id;
+  openAdminVehicleAction(act, id);
+});
+
+document.querySelectorAll("[data-history-filter]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-history-filter]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const filter = btn.dataset.historyFilter;
+    renderEmployeeHistory(filter);
+  });
+});
+
+$("employeeHistoryTable")?.addEventListener("click", event => {
+  const btn = event.target.closest("[data-hist-idx]");
+  if (!btn) return;
+  const idx = Number(btn.dataset.histIdx);
+  const item = (window.__historyList || [])[idx];
+  if (!item) return;
+
+  if (item.kind === "service") {
+    if (typeof window.openRequestDetail === "function") window.openRequestDetail(item.raw);
+  } else if (item.kind === "repair") {
+    if (typeof window.openRepairDetail === "function") window.openRepairDetail(item.raw);
+  } else if (item.kind === "vehicle") {
+    openVehicleRequestDetail(item.raw);
+  } else if (item.kind === "procurement") {
+    showModal({
+      title: `Detail Requisisi Pembelian: ${item.raw.prNo || item.id}`,
+      body: `
+        <div class="form-fields">
+          <div class="field"><label>Tanggal</label><div>${esc(item.date)}</div></div>
+          <div class="field"><label>Departemen</label><div>${esc(item.raw.department || "-")}</div></div>
+          <div class="field full"><label>Barang / Items</label><div>${esc(item.desc)}</div></div>
+          <div class="field full"><label>Alasan / Justifikasi</label><div>${esc(item.raw.justification || "-")}</div></div>
+          <div class="field"><label>Status</label><div>${badge(item.status)}</div></div>
+        </div>
+      `,
+      actions: [{ label: "Tutup", cls: "primary-button" }]
+    });
+  }
+});
 
 $("tileGrid")?.addEventListener("click", onTileClick);
 $("hubGrid")?.addEventListener("click", onTileClick);
@@ -1254,8 +1844,8 @@ document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
     if (nav === "home") goto("home");
     else if (nav === "requests") goto("requests");
     else if (nav === "repairs") goto("repairs");
-    else if (nav === "vehicles") goto("vehicles");
-    else if (nav === "history") goto("requests");
+    else if (nav === "vehicles") goto("employee-vehicles");
+    else if (nav === "history") goto("history");
     else if (nav === "profile") openProfile();
   });
 });
