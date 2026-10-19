@@ -42,7 +42,7 @@ const STAFF_TILES = [
   { id: "inventory", perm: ["inventory", "requests"], gate: "inventory", page: "inventory-hub", label: "Inventory & Stok", zh: "出入库", icon: "fa-box" },
   { id: "procurement", perm: ["procurement"], gate: "procurement", page: "procurement", label: "Pengadaan & Arsip PO", zh: "采购与归档", icon: "fa-file-contract" },
   { id: "assets", perm: ["assets"], gate: "assets", page: "assets", label: "Aset Perusahaan", zh: "公司资产", icon: "fa-laptop" },
-  { id: "vehicles", perm: ["vehicles"], gate: "vehicles", page: "vehicles", label: "Kendaraan", zh: "车辆", icon: "fa-car" },
+  { id: "vehicles", perm: ["vehicles"], gate: "vehicles", page: "vehicle-hub", label: "Kendaraan", zh: "车辆", icon: "fa-car" },
   { id: "repairs", perm: ["repairs"], gate: "repairs", page: "repairs", label: "Fasilitas & Perbaikan", zh: "维修设施", icon: "fa-screwdriver-wrench" },
   { id: "meals", perm: ["meals"], gate: "meals", page: "canteen", label: "Pesan Makan Siang & Malam", zh: "预订餐", icon: "fa-utensils" },
   { id: "vendors", perm: ["vendors"], gate: "vendors", page: "vendors", label: "Vendor", zh: "供应商", icon: "fa-truck-field" }
@@ -50,8 +50,16 @@ const STAFF_TILES = [
 
 const EMPLOYEE_TILES = [
   { id: "requests", page: "requests", label: "Permintaan Barang", zh: "物品申请", icon: "fa-clipboard-list" },
-  { id: "repairs", page: "repairs", label: "Fasilitas & Perbaikan", zh: "维修设施", icon: "fa-screwdriver-wrench" }
+  { id: "repairs", page: "repairs", label: "Fasilitas & Perbaikan", zh: "维修设施", icon: "fa-screwdriver-wrench" },
+  { id: "vehicles", page: "vehicle-requests", label: "Permintaan Kendaraan", zh: "车辆申请", icon: "fa-car" }
 ];
+
+const VEHICLE_HUB_TILES = [
+  { gate: "vehicles", page: "vehicles", label: "Data Kendaraan", sub: "Daftar armada", icon: "fa-car-side" },
+  { gate: "vehicles", page: "vehicle-requests", label: "Permintaan Kendaraan", sub: "Pengajuan dan persetujuan", icon: "fa-route" }
+];
+
+const EMPLOYEE_PAGES = ["requests", "repairs", "vehicle-requests", "history", "profile"];
 
 const HUB_TILES = [
   { gate: "inventory", page: "inventory", label: "Stok In & Stok Out", sub: "Panel pengelolaan stok", icon: "fa-cubes" },
@@ -63,7 +71,7 @@ let profile = null;
 let generation = 0;
 let currentPage = "home";
 let bellTimer = null;
-let data = { service: [], repairs: [], access: [] };
+let data = { service: [], repairs: [], access: [], vehicles: [] };
 let notifFilter = "all"; // "all" | "unread"
 
 const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
@@ -145,6 +153,10 @@ function showModal({ title, icon, body, actions, wide = false }) {
 
 function backTarget(page) {
   if (page === "home") return null;
+  if (profile?.role === "employee") return null;
+  if (["vehicles", "vehicle-requests"].includes(page) && isStaff()) {
+    return { page: "vehicle-hub", label: "Kendaraan" };
+  }
   if (["inventory", "requests"].includes(page) && isStaff()) {
     return { page: "inventory-hub", label: "Inventory & Stok" };
   }
@@ -152,6 +164,7 @@ function backTarget(page) {
 }
 
 function goto(page) {
+  if (profile?.role === "employee" && !EMPLOYEE_PAGES.includes(page) && page !== "notifications") page = "requests";
   const section = $("page-" + page);
   if (!section) return;
 
@@ -169,7 +182,9 @@ function goto(page) {
 
   closeMenus();
   window.scrollTo(0, 0);
+  syncEmployeeNav(page);
 
+  if (page === "profile") renderProfilePage();
   if (page === "users") renderUsersPage();
   if (page === "settings") renderSettingsPage();
   if (page === "notifications") renderNotificationsPage();
@@ -182,6 +197,35 @@ function goto(page) {
 
 // Halaman lama memanggil showPage(...) lewat onclick; arahkan ke sini.
 window.showPage = name => goto(name);
+
+const NAV_PAGE = { requests: "requests", repairs: "repairs", "vehicle-requests": "vehicles", history: "history", profile: "profile" };
+
+function syncEmployeeNav(page) {
+  const key = NAV_PAGE[page];
+  document.querySelectorAll("#mobileBottomNav .nav-item").forEach(b =>
+    b.classList.toggle("active", !!key && b.dataset.nav === key));
+}
+
+function renderProfilePage() {
+  const card = $("profileCard");
+  if (!card || !profile || !user) return;
+  const row = (label, value) =>
+    `<div class="profile-row"><span>${esc(label)}</span><strong>${esc(value || "-")}</strong></div>`;
+  card.innerHTML = `
+    <div class="profile-top">
+      <span class="session-avatar big">${
+        safePhoto(profile.photoData)
+          ? `<img src="${esc(profile.photoData)}" alt="Foto profil">`
+          : esc(initials(profile.name))
+      }</span>
+      <div><h3>${esc(profile.name || "Pengguna")}</h3><small>${esc(ROLE_LABELS[profile.role] || "")}</small></div>
+    </div>
+    ${row("Email", user.email)}
+    ${row("Nama pengguna", profile.username ? "@" + profile.username : "")}
+    ${row("Departemen", profile.department)}
+    <button type="button" class="primary-button" id="editProfileButton"><i class="fa-solid fa-pen"></i> Ubah Foto / Nama</button>`;
+  $("editProfileButton").addEventListener("click", openProfile);
+}
 
 /* ---------- Dialog hak akses ---------- */
 
@@ -264,104 +308,94 @@ function tileHTML(tile, locked, index, group) {
     </button>`;
 }
 
-async function renderEmployeeHistory(filter = "all") {
-  const tbody = $("employeeHistoryTable");
-  if (!tbody || !user) return;
+let historyFilter = "all";
 
-  const uid = user.uid;
-  const results = await Promise.allSettled([
-    (filter === "all" || filter === "service") ? getDocs(query(collection(db, "serviceRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null),
-    (filter === "all" || filter === "procurement") ? getDocs(query(collection(db, "procurementRequisitions"), where("requesterUid", "==", uid))) : Promise.resolve(null),
-    (filter === "all" || filter === "repair") ? getDocs(query(collection(db, "repairRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null),
-    (filter === "all" || filter === "vehicle") ? getDocs(query(collection(db, "vehicleRequests"), where("requesterUid", "==", uid))) : Promise.resolve(null)
-  ]);
-
-  let list = [];
-  let hasError = false;
-
-  const [serviceRes, prRes, repairRes, vehicleRes] = results;
-
-  if (serviceRes.status === "fulfilled" && serviceRes.value) {
-    serviceRes.value.docs.forEach(d => {
-      const item = d.data();
-      list.push({
-        type: "Permintaan Barang",
-        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
-        rawDate: seconds(item.createdAt),
-        desc: `${item.itemName || "-"} (${item.quantity || 1} ${item.unit || "unit"})`,
-        status: item.status || "Pending"
-      });
-    });
-  } else if (serviceRes.status === "rejected") {
-    console.warn("Gagal memuat serviceRequests:", serviceRes.reason);
-    hasError = true;
+const HISTORY_SOURCES = {
+  service: {
+    col: "serviceRequests", type: "Permintaan Barang", icon: "fa-boxes-packing",
+    desc: i => `${i.itemName || "-"} (${i.quantity || 1} ${i.unit || "unit"})`,
+    result: i => i.statusNote || i.handoverSlot || ""
+  },
+  repair: {
+    col: "repairRequests", type: "Lapor Perbaikan", icon: "fa-screwdriver-wrench",
+    desc: i => `${i.category || "-"} — ${i.location || "-"}`,
+    result: i => i.actionNote || i.statusNote || ""
+  },
+  vehicle: {
+    col: "vehicleRequests", type: "Permintaan Kendaraan", icon: "fa-car",
+    desc: i => `Tujuan: ${i.destination || "-"}${i.departDate ? ` · ${i.departDate} ${i.departTime || ""}` : ""}`,
+    result: i => i.vehicleInfo
+      ? `Kendaraan: ${i.vehicleInfo}${i.driverName ? ` · Sopir: ${i.driverName}` : ""}`
+      : (i.statusNote || "")
+  },
+  procurement: {
+    col: "procurementRequisitions", type: "Pembelian (PR)", icon: "fa-cart-shopping",
+    desc: i => `${i.prNo || "PR"} — ${i.itemName || i.title || "Pengadaan Barang"}`,
+    result: i => i.statusNote || ""
   }
+};
 
-  if (prRes.status === "fulfilled" && prRes.value) {
-    prRes.value.docs.forEach(d => {
-      const item = d.data();
-      list.push({
-        type: "Pembelian (PR)",
-        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
-        rawDate: seconds(item.createdAt),
-        desc: `${item.prNo || "PR"} — ${item.itemName || item.title || "Pengadaan Barang"}`,
-        status: item.status || "Diajukan"
-      });
-    });
-  } else if (prRes.status === "rejected") {
-    console.warn("Gagal memuat procurementRequisitions:", prRes.reason);
-    hasError = true;
-  }
-
-  if (repairRes.status === "fulfilled" && repairRes.value) {
-    repairRes.value.docs.forEach(d => {
-      const item = d.data();
-      list.push({
-        type: "Lapor Perbaikan",
-        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
-        rawDate: seconds(item.createdAt),
-        desc: `${item.category || "-"} — ${item.location || "-"}`,
-        status: item.status || "Pending"
-      });
-    });
-  } else if (repairRes.status === "rejected") {
-    console.warn("Gagal memuat repairRequests:", repairRes.reason);
-    hasError = true;
-  }
-
-  if (vehicleRes.status === "fulfilled" && vehicleRes.value) {
-    vehicleRes.value.docs.forEach(d => {
-      const item = d.data();
-      list.push({
-        type: "Permintaan Kendaraan",
-        date: item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString("id-ID") : "-",
-        rawDate: seconds(item.createdAt),
-        desc: `${item.vehicleName || "Kendaraan Dinas"} — Tujuan: ${item.destination || "-"}`,
-        status: item.status || "Pending"
-      });
-    });
-  } else if (vehicleRes.status === "rejected") {
-    console.warn("Gagal memuat vehicleRequests:", vehicleRes.reason);
-    hasError = true;
-  }
-
-  list.sort((a, b) => b.rawDate - a.rawDate);
-
-  if (list.length > 0) {
-    tbody.innerHTML = list.map(item => `
-      <tr>
-        <td>${esc(item.date)}</td>
-        <td><strong>${esc(item.type)}</strong></td>
-        <td>${esc(item.desc)}</td>
-        <td><span class="status-badge">${esc(item.status)}</span></td>
-      </tr>
-    `).join("") + (hasError ? `<tr><td colspan="4" class="notice" style="text-align:center"><small><i class="fa-solid fa-triangle-exclamation"></i> Sebagian riwayat tidak dapat dimuat karena kendala izin atau koneksi.</small></td></tr>` : "");
-  } else if (hasError) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Gagal memuat sebagian riwayat. Pastikan firestore.rules mengizinkan akses.</td></tr>`;
-  } else {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">Belum ada riwayat pengajuan.</td></tr>`;
-  }
+function historyBadgeClass(status) {
+  if (["Ditolak", "Dibatalkan", "Canceled"].includes(status)) return "danger";
+  if (["Menunggu", "Baru", "Pending", "Diajukan", "Menunggu Part"].includes(status)) return "warning";
+  return "";
 }
+
+async function renderEmployeeHistory(filter = historyFilter) {
+  historyFilter = filter;
+  const list = $("employeeHistoryList");
+  if (!list || !user) return;
+
+  document.querySelectorAll("[data-history-filter]").forEach(b =>
+    b.classList.toggle("active", b.dataset.historyFilter === filter));
+
+  const keys = Object.keys(HISTORY_SOURCES).filter(k => filter === "all" || k === filter);
+  const uid = user.uid;
+  const current = generation;
+
+  const results = await Promise.allSettled(keys.map(k =>
+    getDocs(query(collection(db, HISTORY_SOURCES[k].col), where("requesterUid", "==", uid)))));
+  if (current !== generation) return;
+
+  const items = [];
+  let failed = 0;
+
+  results.forEach((res, i) => {
+    if (res.status !== "fulfilled") { failed++; console.warn("Riwayat gagal:", keys[i], res.reason); return; }
+    const src = HISTORY_SOURCES[keys[i]];
+    res.value.docs.forEach(d => {
+      const it = d.data();
+      items.push({
+        src,
+        ts: seconds(it.createdAt),
+        date: it.createdAt?.toDate ? it.createdAt.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+        ticket: it.ticketNo || it.prNo || "",
+        desc: src.desc(it),
+        result: src.result(it),
+        status: it.status || "Menunggu"
+      });
+    });
+  });
+
+  items.sort((a, b) => b.ts - a.ts);
+
+  list.innerHTML = (items.length
+    ? items.map(it => `
+      <article class="history-card">
+        <span class="history-icon"><i class="fa-solid ${esc(it.src.icon)}"></i></span>
+        <div class="history-body">
+          <div class="history-top"><strong>${esc(it.src.type)}</strong><span class="status-badge ${historyBadgeClass(it.status)}">${esc(it.status)}</span></div>
+          <p>${esc(it.desc)}</p>
+          ${it.result ? `<p class="history-result"><i class="fa-solid fa-circle-check"></i> ${esc(it.result)}</p>` : ""}
+          <small>${esc(it.date)}${it.ticket ? " · " + esc(it.ticket) : ""}</small>
+        </div>
+      </article>`).join("")
+    : `<p class="catalog-empty">Belum ada riwayat pengajuan.</p>`)
+    + (failed ? `<p class="catalog-empty"><small><i class="fa-solid fa-triangle-exclamation"></i> Sebagian riwayat tidak dapat dimuat (izin atau koneksi).</small></p>` : "");
+}
+
+document.querySelectorAll("[data-history-filter]").forEach(btn =>
+  btn.addEventListener("click", () => renderEmployeeHistory(btn.dataset.historyFilter)));
 
 async function renderEmployeeHomeWidget() {
   const widget = $("employeeWelcomeWidget");
@@ -434,16 +468,13 @@ function renderHome() {
 
   const welcomeWidget = $("employeeWelcomeWidget");
   const bottomNav = $("mobileBottomNav");
+  const isEmployee = profile.role === "employee";
 
-  if (profile.role === "employee" || profile.role === "vendor") {
-    if (bottomNav) bottomNav.hidden = false;
-    if (welcomeWidget) {
-      welcomeWidget.hidden = false;
-      renderEmployeeHomeWidget();
-    }
-  } else {
-    if (bottomNav) bottomNav.hidden = true;
-    if (welcomeWidget) welcomeWidget.hidden = true;
+  if (bottomNav) bottomNav.hidden = !isEmployee;
+  document.body.classList.toggle("employee-mode", isEmployee);
+  if (welcomeWidget) {
+    welcomeWidget.hidden = !isEmployee;
+    if (isEmployee) renderEmployeeHomeWidget();
   }
 
   if (isStaff()) {
@@ -470,6 +501,13 @@ function renderHome() {
     ).join("");
   }
 
+  const vhub = $("vehicleHubGrid");
+  if (vhub) {
+    vhub.innerHTML = VEHICLE_HUB_TILES.map((tile, i) =>
+      tileHTML(tile, isStaff() && !can(tile.gate), i, "vhub")
+    ).join("");
+  }
+
   const hub = $("hubGrid");
   if (hub) {
     hub.innerHTML = HUB_TILES.map((tile, i) =>
@@ -491,6 +529,11 @@ function onTileClick(event) {
 
   if (group === "hub") {
     const tile = HUB_TILES[index];
+    return openGuarded(tile.gate, tile.page);
+  }
+
+  if (group === "vhub") {
+    const tile = VEHICLE_HUB_TILES[index];
     return openGuarded(tile.gate, tile.page);
   }
 
@@ -653,6 +696,7 @@ function openProfile() {
           const nameChanged = name !== profile.name;
           profile = { ...profile, ...update };
           renderAvatar();
+          if (currentPage === "profile") renderProfilePage();
 
           toast("Profil disimpan.");
           if (nameChanged) setTimeout(() => location.reload(), 900);
@@ -995,6 +1039,15 @@ function bellList() {
       });
     }
 
+    for (const r of (data.vehicles || []).filter(x => x.status === "Menunggu")) {
+      list.push({
+        kind: "vehicles", id: r.id, ts: r.createdAt,
+        icon: "fa-car",
+        title: `Permintaan kendaraan · ${r.requesterName || "-"}`,
+        sub: `${r.destination || "-"} — ${r.departDate || ""} ${r.departTime || ""}`
+      });
+    }
+
     return list.sort((a, b) => seconds(b.ts) - seconds(a.ts));
   }
 
@@ -1012,6 +1065,15 @@ function bellList() {
       kind: "repairs", id: r.id, ts: r.updatedAt || r.createdAt,
       icon: "fa-screwdriver-wrench",
       title: `Laporan perbaikan: ${r.category || "-"}`,
+      sub: `Status: ${r.status}`
+    });
+  }
+
+  for (const r of (data.vehicles || []).filter(x => x.status !== "Menunggu")) {
+    list.push({
+      kind: "vehicles", id: r.id, ts: r.updatedAt || r.createdAt,
+      icon: "fa-car",
+      title: `Permintaan kendaraan: ${r.destination || "-"}`,
       sub: `Status: ${r.status}`
     });
   }
@@ -1129,10 +1191,22 @@ async function loadBell() {
       ]);
       if (current !== generation) return;
 
+      let vehicles = [];
+      if (can("vehicles")) {
+        try {
+          const vs = await getDocs(collection(db, "vehicleRequests"));
+          vehicles = vs.docs.map(d => ({ ...d.data(), id: d.id }));
+        } catch (error) {
+          console.warn("Permintaan kendaraan tidak dapat dimuat:", error?.code);
+        }
+      }
+      if (current !== generation) return;
+
       data = {
         service: service.docs.map(d => ({ ...d.data(), id: d.id })),
         repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
-        access: access.docs.map(d => ({ ...d.data(), id: d.id }))
+        access: access.docs.map(d => ({ ...d.data(), id: d.id })),
+        vehicles
       };
     } else {
       const uid = user.uid;
@@ -1142,10 +1216,20 @@ async function loadBell() {
       ]);
       if (current !== generation) return;
 
+      let vehicles = [];
+      try {
+        const vs = await getDocs(query(collection(db, "vehicleRequests"), where("requesterUid", "==", uid)));
+        vehicles = vs.docs.map(d => ({ ...d.data(), id: d.id }));
+      } catch (error) {
+        console.warn("Permintaan kendaraan tidak dapat dimuat:", error?.code);
+      }
+      if (current !== generation) return;
+
       data = {
         service: service.docs.map(d => ({ ...d.data(), id: d.id })),
         repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
-        access: []
+        access: [],
+        vehicles
       };
     }
 
@@ -1211,6 +1295,12 @@ function handleNotifItemClick(kind, id) {
     return;
   }
 
+  if (kind === "vehicles") {
+    if (isStaff() && !can("vehicles")) return askAccess("vehicles");
+    goto("vehicle-requests");
+    return;
+  }
+
   if (kind === "repairs") {
     if (isStaff() && !can("repairs")) {
       return askAccess("repairs");
@@ -1234,6 +1324,7 @@ function startBellTimer() {
 
 $("tileGrid")?.addEventListener("click", onTileClick);
 $("hubGrid")?.addEventListener("click", onTileClick);
+$("vehicleHubGrid")?.addEventListener("click", onTileClick);
 
 $("homeButton")?.addEventListener("click", () => goto("home"));
 
@@ -1246,19 +1337,13 @@ $("bellButton")?.addEventListener("click", event => {
   goto("notifications");
 });
 
+const NAV_TARGET = { requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", history: "history", profile: "profile" };
+
 document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("#mobileBottomNav .nav-item").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    const nav = btn.dataset.nav;
-    if (nav === "home") goto("home");
-    else if (nav === "requests") goto("requests");
-    else if (nav === "repairs") goto("repairs");
-    else if (nav === "vehicles") goto("vehicles");
-    else if (nav === "history") goto("requests");
-    else if (nav === "profile") openProfile();
-  });
+  btn.addEventListener("click", () => goto(NAV_TARGET[btn.dataset.nav] || "requests"));
 });
+
+$("profileLogoutButton")?.addEventListener("click", () => $("logout-button")?.click());
 
 document.querySelectorAll("[data-notif-filter]").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -1329,7 +1414,7 @@ $("profileMenu")?.addEventListener("click", event => {
   const action = item.dataset.profileAction;
   closeMenus();
 
-  if (action === "profile") openProfile();
+  if (action === "profile") { if (profile?.role === "employee") goto("profile"); else openProfile(); }
   else if (action === "settings") goto("settings");
   else if (action === "users") goto("users");
   else if (action === "reports") openGuarded("reports", "reports");
@@ -1350,6 +1435,31 @@ document.addEventListener("keydown", event => {
   }
 });
 
+/* ---------- Tabel -> kartu di HP: isi data-label dari header ---------- */
+
+function labelTables() {
+  document.querySelectorAll(".table-wrap table").forEach(table => {
+    table.classList.add("stack");
+    const heads = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());
+    table.querySelectorAll("tbody tr").forEach(tr => {
+      let i = 0;
+      for (const td of tr.children) {
+        if (td.colSpan > 1) { i += td.colSpan; continue; }
+        if (!td.dataset.label && heads[i]) td.dataset.label = heads[i];
+        i++;
+      }
+    });
+  });
+}
+
+let labelQueued = false;
+new MutationObserver(() => {
+  if (labelQueued) return;
+  labelQueued = true;
+  requestAnimationFrame(() => { labelQueued = false; labelTables(); });
+}).observe(document.querySelector(".content") || document.body, { childList: true, subtree: true });
+labelTables();
+
 await authPersistenceReady;
 
 onAuthStateChanged(auth, async current => {
@@ -1357,7 +1467,7 @@ onAuthStateChanged(auth, async current => {
 
   user = null;
   profile = null;
-  data = { service: [], repairs: [], access: [] };
+  data = { service: [], repairs: [], access: [], vehicles: [] };
   clearInterval(bellTimer);
   closeMenus();
   closeShellModal();
@@ -1381,6 +1491,7 @@ onAuthStateChanged(auth, async current => {
 
     renderAvatar();
     renderHome();
+    if (profile.role === "employee") goto("requests");
 
     // Karyawan: tidak memakai halaman Inventory/Stok.
     await loadBell();
