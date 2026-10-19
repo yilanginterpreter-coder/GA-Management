@@ -898,3 +898,83 @@ footer span{padding:0 5px;color:var(--sage)}
   align-items: center;
   justify-content: space-between;
 }
+
+/* ==========================================================================
+   Final overrides: tabel dengan scrollbar selalu terjangkau, panel karyawan
+   ========================================================================== */
+
+/* Tabel punya area gulir sendiri (atas-bawah & kiri-kanan), header tetap terlihat */
+.table-wrap{
+  width:100%;
+  max-height:calc(100vh - 150px);
+  min-height:120px;
+  overflow:auto;
+  scrollbar-width:auto;
+  scrollbar-color:#7FA39B #E6ECE3;
+}
+.table-wrap::-webkit-scrollbar{width:14px;height:14px}
+.table-wrap::-webkit-scrollbar-track{background:#E6ECE3;border-radius:8px}
+.table-wrap::-webkit-scrollbar-thumb{background:#7FA39B;border-radius:8px;border:3px solid #E6ECE3}
+.table-wrap::-webkit-scrollbar-thumb:hover{background:#477B79}
+.table-wrap::-webkit-scrollbar-corner{background:#E6ECE3}
+.table-wrap table{border-collapse:separate;border-spacing:0;min-width:100%}
+.table-wrap thead th{position:sticky;top:0;z-index:2;background:#EEF2EA;box-shadow:0 1px 0 #D5DBD1}
+
+/* Bar bawah karyawan: tetap di bawah pada semua ukuran layar */
+.mobile-bottom-nav[hidden]{display:none!important}
+.mobile-bottom-nav.employee-nav-bar{
+  display:flex;position:fixed;top:auto;bottom:0;left:0;right:0;margin:0;
+  height:auto;min-height:62px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+  border-radius:0;justify-content:center;gap:2px;
+  background:#2F6F6B;border-top:0;box-shadow:0 -3px 14px rgba(20,50,48,.25);z-index:200;
+}
+.mobile-bottom-nav.employee-nav-bar .nav-item{
+  flex:1 1 0;max-width:150px;min-width:0;flex-direction:column;gap:3px;
+  padding:6px 2px;border-radius:10px;font-size:10px;line-height:1.15;text-align:center;
+  color:rgba(255,255,255,.72);background:transparent;
+}
+.mobile-bottom-nav.employee-nav-bar .nav-item i{font-size:18px;margin:0}
+.mobile-bottom-nav.employee-nav-bar .nav-item.active{color:#fff;background:rgba(255,255,255,.2);font-weight:700}
+body.employee-mode{padding-bottom:88px}
+body.employee-mode .content{max-width:900px;margin-left:auto;margin-right:auto}
+
+/* Chip filter, kartu riwayat, profil */
+.chip-bar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;margin-bottom:4px;scrollbar-width:thin}
+.chip{flex:0 0 auto;border:1px solid #CFD8CD;background:#fff;color:#3F5A55;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer}
+.chip.active{background:#2F6F6B;border-color:#2F6F6B;color:#fff}
+.history-list{display:flex;flex-direction:column;gap:10px}
+.history-card{display:flex;gap:12px;background:#fff;border:1px solid #DFE4DB;border-radius:14px;padding:13px}
+.history-icon{flex:0 0 38px;height:38px;border-radius:11px;background:#E3F0EE;color:#2F6F6B;display:grid;place-items:center;font-size:16px}
+.history-body{flex:1;min-width:0}
+.history-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.history-top strong{font-size:13px}
+.history-body p{margin:4px 0 0;font-size:13px;color:#33413B;overflow-wrap:anywhere}
+.history-result{color:#2F6F6B!important;font-size:12px!important}
+.history-body small{display:block;margin-top:6px;color:#7A857D;font-size:11px}
+.profile-card{max-width:560px}
+.profile-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.profile-top h3{margin:0;font-size:18px}
+.session-avatar.big{width:68px;height:68px;font-size:24px;flex:0 0 68px}
+.profile-row{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid #E7ECE4;font-size:13px}
+.profile-row span{color:#7A857D}
+.profile-row strong{text-align:right;overflow-wrap:anywhere}
+.profile-card .primary-button{margin-top:14px;width:100%}
+.profile-logout{margin-top:12px;max-width:560px;width:100%}
+#employeeWelcomeWidget:empty{display:none}
+
+/* HP: tabel menjadi kartu */
+@media(max-width:700px){
+  .table-wrap{max-height:none;overflow:visible;min-height:0}
+  .table-wrap table.stack,.table-wrap table.stack tbody{display:block;border:0}
+  .table-wrap table.stack thead{display:none}
+  .table-wrap table.stack tr{display:block;border:1px solid #DFE4DB;border-radius:12px;margin-bottom:10px;padding:6px 12px;background:#fff!important}
+  .table-wrap table.stack td{white-space:normal;overflow-wrap:anywhere;display:flex;justify-content:space-between;gap:14px;border:0!important;border-bottom:1px dashed #E7ECE4!important;padding:8px 0;text-align:right;font-size:13px}
+  .table-wrap table.stack td:last-child{border-bottom:0!important}
+  .table-wrap table.stack td::before{content:attr(data-label);flex:0 0 38%;text-align:left;font-weight:700;color:#6B7A70;font-size:11px}
+  .table-wrap table.stack td[colspan]{display:block;text-align:center}
+  .table-wrap table.stack td[colspan]::before{content:none}
+  .table-wrap table.stack td .row-actions{justify-content:flex-end;flex-wrap:wrap}
+  .tile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tile strong{font-size:13px}
+  .modal-card{max-height:92vh;overflow:auto}
+}
