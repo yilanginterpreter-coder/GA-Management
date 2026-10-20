@@ -108,6 +108,7 @@
     <div class="content">
       <div class="page-back" id="pageBack" hidden><button type="button" id="backButton"><i class="fa-solid fa-arrow-left"></i> <span id="backLabel">Beranda</span></button></div>
       <section class="page active" id="page-home">
+        <div id="employeeWelcomeWidget" hidden></div>
         <h2 class="home-title" id="homeTitle">MENU</h2>
         <div class="tile-grid" id="tileGrid"></div>
         <p class="home-note"><i class="fa-solid fa-circle-info"></i> Pilih menu untuk membuka modul. Hak akses mengikuti akun.</p>
@@ -259,7 +260,6 @@
         <article class="panel"><div class="toolbar"><input id="repairSearch" type="search" placeholder="Cari tiket, lokasi, atau masalah..." aria-label="Cari laporan" autocomplete="off"><select id="repairFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pelapor</th><th>Kategori / Lokasi</th><th>Masalah</th><th>Urgensi</th><th>Pelaksana</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="repairTable"><tr><td colspan="9" class="empty-cell">Memuat laporan...</td></tr></tbody></table></div></article>
       </section>
       <section class="page" id="page-requests">
-        <div id="employeeWelcomeWidget" hidden></div>
         <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.</p></div></div>
         <div class="request-tabs"><button type="button" class="primary-button" id="tabCatalog"><i class="fa-solid fa-store"></i> Katalog Barang</button><button type="button" class="secondary-button" id="tabRequests"><i class="fa-solid fa-clipboard-list"></i> Status Permintaan</button></div>
         <div id="catalogView">
@@ -383,6 +383,15 @@
         </div>
         <div class="history-list" id="employeeHistoryList"><p class="catalog-empty">Memuat riwayat...</p></div>
       </section>
+      <section class="page" id="page-meals">
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDER</span><h1>Pesan Makan</h1><p>Pesan makan siang dan malam lewat sistem Kantin.</p></div></div>
+        <article class="panel meal-card">
+          <i class="fa-solid fa-utensils meal-icon"></i>
+          <h3>Sistem Pesan Makan Kantin</h3>
+          <p>Pemesanan makan dilakukan di sistem Kantin. Tekan tombol di bawah, lalu masuk dengan akun Kantin Anda.</p>
+          <a class="primary-button" id="mealLink" href="#" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Pesan Makan</a>
+        </article>
+      </section>
       <section class="page" id="page-profile">
         <div class="page-heading"><div><span class="eyebrow">MY ACCOUNT</span><h1>Profil</h1><p>Informasi akun Anda.</p></div></div>
         <article class="panel profile-card" id="profileCard"></article>
@@ -433,6 +442,10 @@
     <button type="button" class="nav-item" data-nav="vehicles">
       <i class="fa-solid fa-car"></i>
       <span>Permintaan Kendaraan</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="meals">
+      <i class="fa-solid fa-utensils"></i>
+      <span>Pesan Makan</span>
     </button>
     <button type="button" class="nav-item" data-nav="history">
       <i class="fa-solid fa-clock-rotate-left"></i>
