@@ -978,3 +978,22 @@ body.employee-mode .content{max-width:900px;margin-left:auto;margin-right:auto}
   .tile strong{font-size:13px}
   .modal-card{max-height:92vh;overflow:auto}
 }
+
+/* Panel karyawan: beranda (motivasi + pengumuman), tanpa ikon profil di header */
+body.employee-mode #avatarButton{display:none}
+body.employee-mode #homeTitle,
+body.employee-mode #tileGrid,
+body.employee-mode .home-note{display:none}
+.announce-panel .panel-heading h3{display:flex;align-items:center;gap:8px}
+.announce-item{padding:12px 0;border-top:1px solid #E7ECE4}
+.announce-item:first-of-type{border-top:0}
+.announce-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.announce-item p{margin:6px 0 0;font-size:13px;color:#33413B;overflow-wrap:anywhere;white-space:pre-line}
+.announce-item small{display:block;margin-top:6px;color:#7A857D;font-size:11px}
+.meal-card{max-width:560px;text-align:center;padding:28px 20px}
+.meal-icon{font-size:38px;color:#2F6F6B;margin-bottom:10px}
+.meal-card h3{margin:0 0 8px}
+.meal-card p{color:#5E6B63;font-size:13px;margin-bottom:16px}
+.meal-card .primary-button{display:inline-flex;text-decoration:none}
+@media(max-width:420px){.mobile-bottom-nav.employee-nav-bar .nav-item{font-size:9px;padding:6px 1px}}
+body.employee-mode .admin-home-footer{display:none}
