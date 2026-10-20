@@ -3,6 +3,7 @@ import { auth, db, authPersistenceReady } from "./firebase-init.js";
 import {
   collection,
   doc,
+  deleteDoc,
   getDoc,
   getDocs,
   setDoc,
@@ -59,7 +60,10 @@ const VEHICLE_HUB_TILES = [
   { gate: "vehicles", page: "vehicle-requests", label: "Permintaan Kendaraan", sub: "Pengajuan dan persetujuan", icon: "fa-route" }
 ];
 
-const EMPLOYEE_PAGES = ["requests", "repairs", "vehicle-requests", "history", "profile"];
+const EMPLOYEE_PAGES = ["home", "requests", "repairs", "vehicle-requests", "meals", "history", "profile"];
+
+// Alamat sistem pesan makan (Kantin). Ganti di sini bila alamatnya berubah.
+const MEAL_URL = "https://regal-valkyrie-1f1c2a.netlify.app/karyawan.html";
 
 const HUB_TILES = [
   { gate: "inventory", page: "inventory", label: "Stok In & Stok Out", sub: "Panel pengelolaan stok", icon: "fa-cubes" },
@@ -164,7 +168,7 @@ function backTarget(page) {
 }
 
 function goto(page) {
-  if (profile?.role === "employee" && !EMPLOYEE_PAGES.includes(page) && page !== "notifications") page = "requests";
+  if (profile?.role === "employee" && !EMPLOYEE_PAGES.includes(page) && page !== "notifications") page = "home";
   const section = $("page-" + page);
   if (!section) return;
 
@@ -198,7 +202,7 @@ function goto(page) {
 // Halaman lama memanggil showPage(...) lewat onclick; arahkan ke sini.
 window.showPage = name => goto(name);
 
-const NAV_PAGE = { requests: "requests", repairs: "repairs", "vehicle-requests": "vehicles", history: "history", profile: "profile" };
+const NAV_PAGE = { requests: "requests", repairs: "repairs", "vehicle-requests": "vehicles", meals: "meals", history: "history", profile: "profile" };
 
 function syncEmployeeNav(page) {
   const key = NAV_PAGE[page];
@@ -223,6 +227,9 @@ function renderProfilePage() {
     ${row("Email", user.email)}
     ${row("Nama pengguna", profile.username ? "@" + profile.username : "")}
     ${row("Departemen", profile.department)}
+    ${row("No ID Card", profile.idCardNo)}
+    ${row("No Blok", profile.blockNo)}
+    ${row("Lokasi Kerja", profile.workLocation)}
     <button type="button" class="primary-button" id="editProfileButton"><i class="fa-solid fa-pen"></i> Ubah Foto / Nama</button>`;
   $("editProfileButton").addEventListener("click", openProfile);
 }
@@ -430,15 +437,19 @@ async function renderEmployeeHomeWidget() {
   let announcementsHTML = "";
   try {
     const aSnap = await getDocs(query(collection(db, "announcements"), where("active", "==", true)));
-    if (!aSnap.empty) {
-      const anns = aSnap.docs.map(d => d.data());
-      announcementsHTML = `
-        <div style="margin-top: 15px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
-          <strong style="color: #A3E635; display:block; margin-bottom: 4px;"><i class="fa-solid fa-bullhorn"></i> Pengumuman GA:</strong>
-          ${anns.slice(0, 2).map(a => `<div style="font-size: 0.85rem; margin-top: 4px;"><strong>${esc(a.title)}:</strong> ${esc(a.content)}</div>`).join("")}
-        </div>
-      `;
-    }
+    const anns = aSnap.docs.map(d => d.data())
+      .sort((x, y) => String(y.date || "").localeCompare(String(x.date || "")))
+      .slice(0, 6);
+    announcementsHTML = `
+      <article class="panel announce-panel">
+        <div class="panel-heading"><div><h3><i class="fa-solid fa-bullhorn"></i> Pengumuman GA</h3></div></div>
+        ${anns.length ? anns.map(a => `
+          <div class="announce-item">
+            <div class="announce-top"><strong>${esc(a.title || "-")}</strong><span class="status-badge neutral">${esc(a.category || "Umum")}</span></div>
+            <p>${esc(a.content || "")}</p>
+            <small>${esc(a.date || "")}</small>
+          </div>`).join("") : `<p class="catalog-empty">Belum ada pengumuman.</p>`}
+      </article>`;
   } catch (err) {
     console.warn("Could not load announcements:", err);
   }
@@ -451,8 +462,8 @@ async function renderEmployeeHomeWidget() {
         "${esc(quoteText)}"
         <small>— ${esc(quoteAuthor)}</small>
       </div>
-      ${announcementsHTML}
     </div>
+    ${announcementsHTML}
   `;
 }
 
@@ -669,6 +680,9 @@ function openProfile() {
         </div></div>
         <div class="field full"><label>Nama</label><input id="profileName" maxlength="60" value="${esc(profile.name || "")}"></div>
         <div class="field full"><label>Nama Pengguna</label><input id="profileUsername" maxlength="30" value="${esc(profile.username || "")}" placeholder="huruf, angka, titik, strip"></div>
+        <div class="field"><label>No ID Card</label><input id="profileIdCard" maxlength="30" value="${esc(profile.idCardNo || "")}"></div>
+        <div class="field"><label>No Blok</label><input id="profileBlock" maxlength="20" value="${esc(profile.blockNo || "")}"></div>
+        <div class="field full"><label>Nama Lokasi Kerja</label><input id="profileWorkLocation" maxlength="80" value="${esc(profile.workLocation || "")}" placeholder="Contoh: Pabrik 1 / Gudang GA"></div>
         <div class="field full"><label>Email</label><div>${esc(user.email || "-")}</div></div>
         <div class="field full"><label>Role</label><div>${esc(ROLE_LABELS[profile.role] || "-")}</div></div>
       </div>`,
@@ -688,7 +702,13 @@ function openProfile() {
             throw new Error("Nama pengguna hanya boleh huruf, angka, titik, garis bawah, dan strip (maks 30).");
           }
 
-          const update = { name, username };
+          const update = {
+            name,
+            username,
+            idCardNo: root.querySelector("#profileIdCard").value.trim().slice(0, 30),
+            blockNo: root.querySelector("#profileBlock").value.trim().slice(0, 20),
+            workLocation: root.querySelector("#profileWorkLocation").value.trim().slice(0, 80)
+          };
           if (newPhoto) update.photoData = newPhoto;
 
           await updateDoc(doc(db, "users", user.uid), update);
@@ -773,6 +793,7 @@ async function loadQuotesSettings() {
           <button type="button" class="small-action" data-quote-toggle="${esc(q.id)}" data-active="${q.active !== false}">
             ${q.active !== false ? "Nonaktifkan" : "Aktifkan"}
           </button>
+          <button type="button" class="small-action delete" data-del="quote" data-id="${esc(q.id)}">Hapus</button>
         </td>
       </tr>
     `).join("") : `<tr><td colspan="4" class="empty-cell">Belum ada kata motivasi. Silakan tambah baru.</td></tr>`;
@@ -798,6 +819,7 @@ async function loadAnnouncementsSettings() {
           <button type="button" class="small-action" data-ann-toggle="${esc(a.id)}" data-active="${a.active !== false}">
             ${a.active !== false ? "Arsipkan" : "Aktifkan"}
           </button>
+          <button type="button" class="small-action delete" data-del="ann" data-id="${esc(a.id)}">Hapus</button>
         </td>
       </tr>
     `).join("") : `<tr><td colspan="5" class="empty-cell">Belum ada pengumuman GA.</td></tr>`;
@@ -1337,7 +1359,9 @@ $("bellButton")?.addEventListener("click", event => {
   goto("notifications");
 });
 
-const NAV_TARGET = { requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", history: "history", profile: "profile" };
+const NAV_TARGET = { requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", meals: "meals", history: "history", profile: "profile" };
+
+if ($("mealLink")) $("mealLink").href = MEAL_URL;
 
 document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
   btn.addEventListener("click", () => goto(NAV_TARGET[btn.dataset.nav] || "requests"));
@@ -1435,6 +1459,135 @@ document.addEventListener("keydown", event => {
   }
 });
 
+/* ---------- Pengaturan: kata motivasi, pengumuman, format PO ---------- */
+
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+function afterSettingsChange(kind) {
+  if (kind === "quote") loadQuotesSettings();
+  else loadAnnouncementsSettings();
+}
+
+$("addQuoteButton")?.addEventListener("click", () => {
+  showModal({
+    wide: true,
+    title: "Tambah Kata Motivasi",
+    body: `<div class="form-fields">
+      <div class="field full"><label>Kutipan *</label><textarea id="quoteText" maxlength="300"></textarea></div>
+      <div class="field full"><label>Penulis / Sumber</label><input id="quoteAuthor" maxlength="80" placeholder="Boleh kosong"></div>
+    </div>`,
+    actions: [
+      { label: "Batal" },
+      {
+        label: "Simpan", cls: "primary-button",
+        onClick: async root => {
+          const quote = root.querySelector("#quoteText").value.trim();
+          const author = root.querySelector("#quoteAuthor").value.trim();
+          if (!quote) throw new Error("Kutipan wajib diisi.");
+          await setDoc(doc(collection(db, "motivationalQuotes")), {
+            quote, author, active: true, createdAt: serverTimestamp()
+          });
+          toast("Kata motivasi ditambahkan.");
+          afterSettingsChange("quote");
+        }
+      }
+    ]
+  });
+});
+
+$("addAnnouncementButton")?.addEventListener("click", () => {
+  showModal({
+    wide: true,
+    title: "Buat Pengumuman",
+    body: `<div class="form-fields">
+      <div class="field full"><label>Judul *</label><input id="annTitle" maxlength="100"></div>
+      <div class="field"><label>Kategori</label><select id="annCategory"><option>Umum</option><option>Penting</option><option>Libur</option><option>Kegiatan</option></select></div>
+      <div class="field"><label>Tanggal</label><input id="annDate" type="date" value="${todayISO()}"></div>
+      <div class="field full"><label>Isi Pengumuman *</label><textarea id="annContent" maxlength="1000"></textarea></div>
+    </div>`,
+    actions: [
+      { label: "Batal" },
+      {
+        label: "Terbitkan", cls: "primary-button",
+        onClick: async root => {
+          const title = root.querySelector("#annTitle").value.trim();
+          const content = root.querySelector("#annContent").value.trim();
+          if (!title || !content) throw new Error("Judul dan isi pengumuman wajib diisi.");
+          await setDoc(doc(collection(db, "announcements")), {
+            title, content,
+            category: root.querySelector("#annCategory").value,
+            date: root.querySelector("#annDate").value || todayISO(),
+            active: true,
+            createdBy: user.uid,
+            createdAt: serverTimestamp()
+          });
+          toast("Pengumuman diterbitkan.");
+          afterSettingsChange("ann");
+        }
+      }
+    ]
+  });
+});
+
+function bindToggle(tableId, attr, col, kind) {
+  $(tableId)?.addEventListener("click", async event => {
+    const del = event.target.closest(`[data-del="${kind}"]`);
+    if (del) {
+      showModal({
+        icon: "fa-trash",
+        body: "<p>Hapus data ini secara permanen?</p>",
+        actions: [
+          { label: "Batal" },
+          {
+            label: "Hapus", cls: "primary-button",
+            onClick: async () => {
+              await deleteDoc(doc(db, col, del.dataset.id));
+              toast("Data dihapus.");
+              afterSettingsChange(kind);
+            }
+          }
+        ]
+      });
+      return;
+    }
+
+    const button = event.target.closest(`[${attr}]`);
+    if (!button) return;
+    button.disabled = true;
+    try {
+      const active = button.dataset.active === "true";
+      await updateDoc(doc(db, col, button.getAttribute(attr)), { active: !active });
+      afterSettingsChange(kind);
+    } catch (error) {
+      console.error(error);
+      toast(errorText(error));
+      button.disabled = false;
+    }
+  });
+}
+bindToggle("quotesTable", "data-quote-toggle", "motivationalQuotes", "quote");
+bindToggle("announcementsTable", "data-ann-toggle", "announcements", "ann");
+
+$("savePoConfigBtn")?.addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const prPrefix = $("prPrefixInput").value.trim();
+  const poPrefix = $("poPrefixInput").value.trim();
+  if (!prPrefix || !poPrefix) return toast("Prefix PR dan PO wajib diisi.");
+  button.disabled = true;
+  try {
+    await setDoc(doc(db, "settings", "poConfig"), { prPrefix, poPrefix }, { merge: true });
+    toast("Konfigurasi PO disimpan.");
+  } catch (error) {
+    console.error(error);
+    toast(errorText(error));
+  } finally {
+    button.disabled = false;
+  }
+});
+
 /* ---------- Tabel -> kartu di HP: isi data-label dari header ---------- */
 
 function labelTables() {
@@ -1491,7 +1644,7 @@ onAuthStateChanged(auth, async current => {
 
     renderAvatar();
     renderHome();
-    if (profile.role === "employee") goto("requests");
+    if (profile.role === "employee") goto("home");
 
     // Karyawan: tidak memakai halaman Inventory/Stok.
     await loadBell();
