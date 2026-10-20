@@ -333,12 +333,126 @@
       </section>
 
       <section class="page" id="page-canteen">
-        <div class="page-heading"><div><span class="eyebrow">MEAL ORDERS</span><h1>Pesan Makan Siang &amp; Malam</h1><p>Kelola pesanan makan siang dan malam serta catatan layanan.</p></div><button class="primary-button" onclick="openForm('canteen')"><i class="fa-solid fa-plus"></i> Tambah Catatan</button></div>
-        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Jenis Catatan</th><th>Detail</th><th>Vendor</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="canteenTable"></tbody></table></div></article>
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDERS</span><h1>Pesan Makan Siang &amp; Malam</h1><p>Menu, persetujuan pesanan, rekap untuk vendor, serta jam dan shift.</p></div></div>
+        <div class="chip-bar" id="mealAdminTabs">
+          <button type="button" class="chip active" data-meal-tab="orders">Pesanan</button>
+          <button type="button" class="chip" data-meal-tab="recap">Rekap Vendor</button>
+          <button type="button" class="chip" data-meal-tab="menu">Menu</button>
+          <button type="button" class="chip" data-meal-tab="settings">Jam &amp; Shift</button>
+        </div>
+
+        <div id="mealTab-orders">
+          <article class="panel">
+            <div class="toolbar">
+              <input type="date" id="moDate" aria-label="Tanggal makan">
+              <select id="moMeal" aria-label="Jenis makan" style="max-width:170px"><option value="">Siang &amp; Malam</option><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select>
+              <select id="moStatus" aria-label="Status" style="max-width:170px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Ditolak</option><option>Dibatalkan</option></select>
+              <button type="button" class="primary-button" id="moApproveAll" hidden><i class="fa-solid fa-check-double"></i> Setujui Semua Menunggu</button>
+            </div>
+            <div id="moSummary" class="meal-summary"></div>
+            <div class="table-wrap"><table><thead><tr><th>Nama</th><th>No ID Card</th><th>No Blok</th><th>Lokasi Kerja</th><th>Makan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="moTable"><tr><td colspan="7" class="empty-cell">Memuat pesanan...</td></tr></tbody></table></div>
+          </article>
+        </div>
+
+        <div id="mealTab-recap" hidden>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Rekap untuk Vendor</h3><p>Hanya pesanan yang sudah disetujui yang dihitung.</p></div></div>
+            <div class="toolbar">
+              <input type="date" id="mrDate" aria-label="Tanggal makan">
+              <select id="mrMeal" aria-label="Jenis makan" style="max-width:170px"><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select>
+              <button type="button" class="secondary-button" id="mrCopy"><i class="fa-regular fa-copy"></i> Salin Ringkasan</button>
+              <button type="button" class="secondary-button" id="mrCsv"><i class="fa-solid fa-file-csv"></i> Unduh CSV</button>
+            </div>
+            <div id="mrSummary" class="meal-summary"></div>
+            <div class="table-wrap"><table><thead><tr><th>Lokasi Kerja</th><th>Jumlah</th></tr></thead><tbody id="mrTable"></tbody></table></div>
+          </article>
+        </div>
+
+        <div id="mealTab-menu" hidden>
+          <article class="panel" id="mmEditor">
+            <div class="panel-heading"><div><h3>Menu Makan</h3><p>Foto dan keterangan ini hanya informasi untuk karyawan, bukan pilihan.</p></div></div>
+            <div class="form-fields">
+              <div class="field"><label>Tanggal makan</label><input type="date" id="mmDate"></div>
+              <div class="field"><label>Jenis makan</label><select id="mmMeal"><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select></div>
+              <div class="field full"><label>Keterangan menu</label><textarea id="mmTitle" maxlength="500" placeholder="Contoh: Nasi, ayam goreng, sayur asem, buah"></textarea></div>
+              <div class="field full"><label>Foto menu</label><input type="file" id="mmPhoto" accept="image/*"></div>
+              <div class="field full" id="mmPreview"></div>
+            </div>
+            <div class="modal-actions"><button type="button" class="secondary-button" id="mmDelete" hidden>Hapus Menu</button><button type="button" class="primary-button" id="mmSave"><i class="fa-solid fa-check"></i> Simpan Menu</button></div>
+          </article>
+        </div>
+
+        <div id="mealTab-settings" hidden>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Jam Pemesanan (WIB)</h3><p>Pemesanan di luar jam ini ditolak oleh sistem. Jam tutup yang lebih kecil dari jam buka berarti melewati tengah malam.</p></div><i class="fa-regular fa-clock"></i></div>
+            <div class="form-fields">
+              <div class="field"><label>Makan siang — buka</label><input type="time" id="cfgLunchOpen"></div>
+              <div class="field"><label>Makan siang — tutup</label><input type="time" id="cfgLunchClose"></div>
+              <div class="field"><label>Makan malam — buka</label><input type="time" id="cfgDinnerOpen"></div>
+              <div class="field"><label>Makan malam — tutup</label><input type="time" id="cfgDinnerClose"></div>
+            </div>
+            <div class="modal-actions"><button type="button" class="primary-button" id="cfgSave"><i class="fa-solid fa-check"></i> Simpan Jam</button></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Shift Karyawan</h3><p>Shift Pagi hanya bisa memesan makan siang, Shift Malam hanya makan malam. Karyawan tidak bisa mengubah shift sendiri.</p></div><i class="fa-solid fa-user-clock"></i></div>
+            <div class="toolbar">
+              <input id="shiftSearch" type="search" placeholder="Cari nama, departemen, atau ID card..." autocomplete="off">
+              <select id="shiftFilter" style="max-width:190px"><option value="">Semua</option><option value="none">Belum diatur</option><option value="pagi">Shift Pagi</option><option value="malam">Shift Malam</option></select>
+            </div>
+            <div class="toolbar">
+              <select id="shiftBulk" style="max-width:240px"><option value="pagi">Jadikan Shift Pagi</option><option value="malam">Jadikan Shift Malam</option><option value="">Kosongkan shift</option></select>
+              <button type="button" class="secondary-button" id="shiftBulkButton">Terapkan ke semua hasil pencarian</button>
+            </div>
+            <p class="meal-summary" id="shiftSummary"></p>
+            <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Departemen</th><th>No ID Card</th><th>Shift</th></tr></thead><tbody id="shiftTable"></tbody></table></div>
+          </article>
+        </div>
+        <table hidden><tbody id="canteenTable"></tbody></table>
       </section>
       <section class="page" id="page-vendors">
         <div class="page-heading"><div><span class="eyebrow">PARTNER MANAGEMENT</span><h1>Vendor</h1><p>Daftar vendor dan informasi kerja sama.</p></div><button class="primary-button" onclick="openForm('vendors')"><i class="fa-solid fa-plus"></i> Tambah Vendor</button></div>
         <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nama Vendor</th><th>Kategori</th><th>Kontak</th><th>Telepon/Email</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vendorTable"></tbody></table></div></article>
+      </section>
+
+      <section class="page" id="page-employees-master">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">EMPLOYEE MASTER DATA</span>
+            <h1>Master Karyawan <small style="font-size:16px;color:#64748b;">员工主数据</small></h1>
+            <p>Kelola data pokok karyawan, No. ID Card, NIK, blok, lokasi kerja, dan tautan akun login.</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="secondary-button" id="empImportExcelBtn"><i class="fa-solid fa-file-excel"></i> Import Excel</button>
+            <button class="secondary-button" id="empExportExcelBtn"><i class="fa-solid fa-file-export"></i> Export Excel</button>
+            <button class="primary-button" id="addEmployeeBtn"><i class="fa-solid fa-user-plus"></i> Tambah Karyawan</button>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="toolbar">
+            <input id="employeeMasterSearch" type="search" placeholder="Cari nama, NIK, ID card, departemen, atau lokasi..." aria-label="Cari karyawan" autocomplete="off" style="max-width:380px;">
+            <select id="employeeDeptFilter" style="max-width:180px;"><option value="">Semua Departemen</option></select>
+            <select id="employeeStatusFilter" style="max-width:160px;"><option value="">Semua Status</option><option value="Aktif">Aktif</option><option value="Nonaktif">Nonaktif</option></select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nama Karyawan</th>
+                  <th>NIK</th>
+                  <th>No ID Card</th>
+                  <th>Jabatan & Dept</th>
+                  <th>Lokasi / Blok</th>
+                  <th>Status Kerja</th>
+                  <th>Akun Linked</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="employeeMasterTable">
+                <tr><td colspan="8" class="empty-cell">Memuat data karyawan...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="page" id="page-vendor-portal">
@@ -379,18 +493,14 @@
           <button type="button" class="chip" data-history-filter="service">Barang</button>
           <button type="button" class="chip" data-history-filter="repair">Perbaikan</button>
           <button type="button" class="chip" data-history-filter="vehicle">Kendaraan</button>
+          <button type="button" class="chip" data-history-filter="meal">Makan</button>
           <button type="button" class="chip" data-history-filter="procurement">Pembelian</button>
         </div>
         <div class="history-list" id="employeeHistoryList"><p class="catalog-empty">Memuat riwayat...</p></div>
       </section>
       <section class="page" id="page-meals">
-        <div class="page-heading"><div><span class="eyebrow">MEAL ORDER</span><h1>Pesan Makan</h1><p>Pesan makan siang dan malam lewat sistem Kantin.</p></div></div>
-        <article class="panel meal-card">
-          <i class="fa-solid fa-utensils meal-icon"></i>
-          <h3>Sistem Pesan Makan Kantin</h3>
-          <p>Pemesanan makan dilakukan di sistem Kantin. Tekan tombol di bawah, lalu masuk dengan akun Kantin Anda.</p>
-          <a class="primary-button" id="mealLink" href="#" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Pesan Makan</a>
-        </article>
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDER</span><h1>Pesan Makan</h1><p>Lihat menu dan pesan makan sesuai shift kerja Anda.</p></div></div>
+        <div id="mealEmployeeView"></div>
       </section>
       <section class="page" id="page-profile">
         <div class="page-heading"><div><span class="eyebrow">MY ACCOUNT</span><h1>Profil</h1><p>Informasi akun Anda.</p></div></div>
@@ -431,7 +541,11 @@
   </main>
 
   <nav class="employee-nav-bar mobile-bottom-nav" id="mobileBottomNav" hidden>
-    <button type="button" class="nav-item active" data-nav="requests">
+    <button type="button" class="nav-item active" data-nav="home">
+      <i class="fa-solid fa-house"></i>
+      <span>Beranda</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="requests">
       <i class="fa-solid fa-boxes-packing"></i>
       <span>Permintaan Barang</span>
     </button>
@@ -472,8 +586,10 @@
 <script type="module" src="requests-firebase.js"></script>
 <script type="module" src="repairs-firebase.js"></script>
 <script type="module" src="vehicles-firebase.js"></script>
+<script type="module" src="meals-firebasi.js"></script>
 <script type="module" src="shell.js"></script>
 <script type="module" src="procurement-firebase.js"></script>
 <script type="module" src="import-inventory.js"></script>
+<script type="module" src="employees-firebase.js"></script>
 </body>
 </html>

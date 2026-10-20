@@ -876,10 +876,12 @@ service cloud.firestore {
         && (
           (settingId == "handoverSlots" && requestUserOk())
           || (settingId == "poConfig" && (canRead() || hasPerm("procurement")))
+          || (settingId == "mealConfig" && activeUser())
         );
 
       allow create, update: if (settingId == "handoverSlots" && validSlotsWrite())
-        || (settingId == "poConfig" && isMain());
+        || (settingId == "poConfig" && isMain())
+        || (settingId == "mealConfig" && isMain());
 
       allow list, delete: if false;
     }
@@ -957,8 +959,47 @@ service cloud.firestore {
     }
 
     match /vendors/{vendorId} {
-      allow get, list: if activeUser();
+      allow get, list: if activeUser() && (
+        hasPerm("vendors") ||
+        hasPerm("procurement") ||
+        canRead() ||
+        (hasVendorId() && vendorId == getVendorId())
+      );
       allow create, update, delete: if hasPerm("vendors") || hasPerm("procurement");
+    }
+
+    match /mealOrders/{orderId} {
+      allow get, list: if activeUser() && (
+        hasPerm("meals") ||
+        resource.data.uid == request.auth.uid
+      );
+      allow create: if activeUser() && request.resource.data.uid == request.auth.uid;
+      allow update: if activeUser() && (
+        hasPerm("meals") ||
+        (
+          resource.data.uid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"]) &&
+          request.resource.data.status == "Dibatalkan"
+        )
+      );
+      allow delete: if hasPerm("meals");
+    }
+
+    match /mealMenus/{menuId} {
+      allow get, list: if activeUser();
+      allow create, update, delete: if hasPerm("meals");
+    }
+
+    match /inventoryCorrections/{correctionId} {
+      allow get, list: if canRead();
+      allow create: if canTransact() && hasPerm("inventory");
+      allow update: if isMain();
+      allow delete: if isMain();
+    }
+
+    match /employeeMaster/{employeeId} {
+      allow get, list: if activeUser();
+      allow create, update, delete: if canRead();
     }
 
     match /goodsReceipts/{grId} {
@@ -993,6 +1034,11 @@ service cloud.firestore {
     }
 
     match /announcements/{announcementId} {
+      allow get, list: if activeUser();
+      allow create, update, delete: if isMain() || hasPerm("procurement") || hasPerm("requests");
+    }
+
+    match /news/{newsId} {
       allow get, list: if activeUser();
       allow create, update, delete: if isMain() || hasPerm("procurement") || hasPerm("requests");
     }

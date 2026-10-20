@@ -62,8 +62,6 @@ const VEHICLE_HUB_TILES = [
 
 const EMPLOYEE_PAGES = ["home", "requests", "repairs", "vehicle-requests", "meals", "history", "profile"];
 
-// Alamat sistem pesan makan (Kantin). Ganti di sini bila alamatnya berubah.
-const MEAL_URL = "https://regal-valkyrie-1f1c2a.netlify.app/karyawan.html";
 
 const HUB_TILES = [
   { gate: "inventory", page: "inventory", label: "Stok In & Stok Out", sub: "Panel pengelolaan stok", icon: "fa-cubes" },
@@ -75,7 +73,7 @@ let profile = null;
 let generation = 0;
 let currentPage = "home";
 let bellTimer = null;
-let data = { service: [], repairs: [], access: [], vehicles: [] };
+let data = { service: [], repairs: [], access: [], vehicles: [], meals: [] };
 let notifFilter = "all"; // "all" | "unread"
 
 const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
@@ -187,6 +185,7 @@ function goto(page) {
   closeMenus();
   window.scrollTo(0, 0);
   syncEmployeeNav(page);
+  document.dispatchEvent(new CustomEvent("ga:page", { detail: page }));
 
   if (page === "profile") renderProfilePage();
   if (page === "users") renderUsersPage();
@@ -335,6 +334,11 @@ const HISTORY_SOURCES = {
       ? `Kendaraan: ${i.vehicleInfo}${i.driverName ? ` · Sopir: ${i.driverName}` : ""}`
       : (i.statusNote || "")
   },
+  meal: {
+    col: "mealOrders", field: "uid", type: "Pesan Makan", icon: "fa-utensils",
+    desc: i => `${i.meal === "malam" ? "Makan malam" : "Makan siang"} · ${i.mealDate || "-"}`,
+    result: () => ""
+  },
   procurement: {
     col: "procurementRequisitions", type: "Pembelian (PR)", icon: "fa-cart-shopping",
     desc: i => `${i.prNo || "PR"} — ${i.itemName || i.title || "Pengadaan Barang"}`,
@@ -361,7 +365,7 @@ async function renderEmployeeHistory(filter = historyFilter) {
   const current = generation;
 
   const results = await Promise.allSettled(keys.map(k =>
-    getDocs(query(collection(db, HISTORY_SOURCES[k].col), where("requesterUid", "==", uid)))));
+    getDocs(query(collection(db, HISTORY_SOURCES[k].col), where(HISTORY_SOURCES[k].field || "requesterUid", "==", uid)))));
   if (current !== generation) return;
 
   const items = [];
@@ -1070,6 +1074,16 @@ function bellList() {
       });
     }
 
+    const pendingMeals = (data.meals || []).filter(x => x.status === "Menunggu");
+    if (pendingMeals.length) {
+      list.push({
+        kind: "meals", id: "meals-pending", ts: pendingMeals[0].createdAt,
+        icon: "fa-utensils",
+        title: `Pesanan makan menunggu persetujuan`,
+        sub: `${pendingMeals.length} pesanan belum diproses`
+      });
+    }
+
     return list.sort((a, b) => seconds(b.ts) - seconds(a.ts));
   }
 
@@ -1096,6 +1110,15 @@ function bellList() {
       kind: "vehicles", id: r.id, ts: r.updatedAt || r.createdAt,
       icon: "fa-car",
       title: `Permintaan kendaraan: ${r.destination || "-"}`,
+      sub: `Status: ${r.status}`
+    });
+  }
+
+  for (const r of (data.meals || []).filter(x => x.status !== "Menunggu")) {
+    list.push({
+      kind: "meals", id: `meal-${r.orderId}-${r.status}`, ts: r.updatedAt || r.createdAt,
+      icon: "fa-utensils",
+      title: `Pesan makan ${r.meal === "malam" ? "malam" : "siang"} · ${r.mealDate || ""}`,
       sub: `Status: ${r.status}`
     });
   }
@@ -1224,11 +1247,23 @@ async function loadBell() {
       }
       if (current !== generation) return;
 
+      let meals = [];
+      if (isMain()) {
+        try {
+          const ms = await getDocs(query(collection(db, "mealOrders"), where("status", "==", "Menunggu")));
+          meals = ms.docs.map(d => ({ ...d.data(), id: d.id }));
+        } catch (error) {
+          console.warn("Pesanan makan tidak dapat dimuat:", error?.code);
+        }
+      }
+      if (current !== generation) return;
+
       data = {
         service: service.docs.map(d => ({ ...d.data(), id: d.id })),
         repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
         access: access.docs.map(d => ({ ...d.data(), id: d.id })),
-        vehicles
+        vehicles,
+        meals
       };
     } else {
       const uid = user.uid;
@@ -1247,11 +1282,21 @@ async function loadBell() {
       }
       if (current !== generation) return;
 
+      let meals = [];
+      try {
+        const ms = await getDocs(query(collection(db, "mealOrders"), where("uid", "==", uid)));
+        meals = ms.docs.map(d => ({ ...d.data(), id: d.id }));
+      } catch (error) {
+        console.warn("Pesanan makan tidak dapat dimuat:", error?.code);
+      }
+      if (current !== generation) return;
+
       data = {
         service: service.docs.map(d => ({ ...d.data(), id: d.id })),
         repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
         access: [],
-        vehicles
+        vehicles,
+        meals
       };
     }
 
@@ -1317,6 +1362,12 @@ function handleNotifItemClick(kind, id) {
     return;
   }
 
+  if (kind === "meals") {
+    if (!isStaff()) return goto("meals");
+    if (!can("meals")) return askAccess("meals");
+    return goto("canteen");
+  }
+
   if (kind === "vehicles") {
     if (isStaff() && !can("vehicles")) return askAccess("vehicles");
     goto("vehicle-requests");
@@ -1360,8 +1411,6 @@ $("bellButton")?.addEventListener("click", event => {
 });
 
 const NAV_TARGET = { requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", meals: "meals", history: "history", profile: "profile" };
-
-if ($("mealLink")) $("mealLink").href = MEAL_URL;
 
 document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
   btn.addEventListener("click", () => goto(NAV_TARGET[btn.dataset.nav] || "requests"));
@@ -1620,7 +1669,7 @@ onAuthStateChanged(auth, async current => {
 
   user = null;
   profile = null;
-  data = { service: [], repairs: [], access: [], vehicles: [] };
+  data = { service: [], repairs: [], access: [], vehicles: [], meals: [] };
   clearInterval(bellTimer);
   closeMenus();
   closeShellModal();

@@ -2,6 +2,9 @@
 import {
   signInWithEmailAndPassword,
   sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
@@ -266,6 +269,10 @@ if (loginForm) {
 
     try {
       await authPersistenceReady;
+
+      const rememberMe = document.getElementById("remember-me")?.checked ?? true;
+      const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistence);
 
       const credential = await signInWithEmailAndPassword(
         auth,
