@@ -562,17 +562,28 @@
 </div>
 <div id="toast" class="toast"></div>
 </div>
-<script src="script.js"></script>
-<script type="module" src="login.js"></script>
-<script type="module" src="stock-firebase.js"></script>
-<script type="module" src="assets-firebase.js"></script>
-<script type="module" src="requests-firebase.js"></script>
-<script type="module" src="repairs-firebase.js"></script>
-<script type="module" src="vehicles-firebase.js"></script>
-<script type="module" src="meals-firebase.js"></script>
-<script type="module" src="employees-firebase.js"></script>
-<script type="module" src="shell.js"></script>
-<script type="module" src="procurement-firebase.js"></script>
-<script type="module" src="import-inventory.js"></script>
+<script src="script.js?v=20261021"></script>
+<script type="module" src="login.js?v=20261021"></script>
+<script type="module" src="stock-firebase.js?v=20261021"></script>
+<script type="module" src="assets-firebase.js?v=20261021"></script>
+<script type="module" src="requests-firebase.js?v=20261021"></script>
+<script type="module" src="repairs-firebase.js?v=20261021"></script>
+<script type="module" src="vehicles-firebase.js?v=20261021"></script>
+<script type="module" src="meals-firebase.js?v=20261021"></script>
+<script type="module" src="employees-firebase.js?v=20261021"></script>
+<script type="module" src="masterdata-firebase.js?v=20261021"></script>
+<script type="module" src="shell.js?v=20261021"></script>
+<script type="module" src="procurement-firebase.js?v=20261021"></script>
+<script type="module" src="import-inventory.js?v=20261021"></script>
+<script>
+window.addEventListener("load",function(){setTimeout(function(){
+var need={stock:"stock-firebase.js",vehicles:"vehicles-firebase.js",meals:"meals-firebase.js",employees:"employees-firebase.js",masterdata:"masterdata-firebase.js",shell:"shell.js"};
+var m=window.__gaModules||{},bad=[];for(var k in need){if(!m[k])bad.push(need[k]);}
+if(!bad.length)return;
+var d=document.createElement("div");
+d.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#B3261E;color:#fff;padding:10px 14px;font:14px/1.4 system-ui;text-align:center";
+d.textContent="Sebagian file belum termuat: "+bad.join(", ")+". Unggah semua file ke GitHub lalu tekan Ctrl+F5.";
+document.body.appendChild(d);},4000);});
+</script>
 </body>
 </html>
