@@ -38,6 +38,11 @@
       </div>
 
       <form id="login-form" novalidate>
+        <div id="login-resume" class="login-resume" hidden>
+          <span class="login-resume-avatar" id="login-resume-avatar">A</span>
+          <div><strong id="login-resume-name">-</strong><small id="login-resume-email">-</small></div>
+        </div>
+        <div id="login-fields">
         <div class="login-field">
           <label for="login-email">Email</label>
           <div class="login-input-wrap">
@@ -69,11 +74,13 @@
           </div>
         </div>
 
+        </div>
         <button type="submit" id="login-submit-btn" class="login-submit-btn">
           <span class="btn-text">Masuk</span>
           <i class="fa-solid fa-arrow-right btn-icon"></i>
         </button>
 
+        <button type="button" id="login-switch" class="login-switch" hidden>Gunakan akun lain</button>
         <div id="login-message" class="login-message" role="status" aria-live="polite"></div>
       </form>
     </div>
@@ -467,6 +474,27 @@
         <button type="button" class="secondary-button profile-logout" id="profileLogoutButton"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
       </section>
 
+      <section class="page" id="page-employees">
+        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE MASTER DATA</span><h1>Master Karyawan</h1><p>Data seluruh karyawan: ID card, jabatan, lokasi kerja, tim, atasan, dan status.</p></div>
+          <div class="heading-actions">
+            <button type="button" class="primary-button" id="addEmployeeButton"><i class="fa-solid fa-plus"></i> Tambah Karyawan</button>
+            <button type="button" class="secondary-button" id="importEmployeesButton"><i class="fa-solid fa-file-import"></i> Import Excel</button>
+            <button type="button" class="secondary-button" id="exportEmployeesButton"><i class="fa-solid fa-file-export"></i> Export Excel</button>
+            <button type="button" class="secondary-button" id="templateEmployeesButton"><i class="fa-solid fa-download"></i> Template</button>
+            <input type="file" id="importEmployeesFile" accept=".xlsx,.xls,.csv" hidden>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="toolbar">
+            <input id="employeeSearch" type="search" placeholder="Cari nama, ID card, jabatan, tim, atasan..." autocomplete="off">
+            <select id="employeeStatusFilter" style="max-width:170px"><option value="">Semua status</option><option>Tetap</option><option>Kontrak</option></select>
+            <select id="employeeLocationFilter" style="max-width:200px"><option value="">Semua lokasi</option></select>
+          </div>
+          <p class="meal-summary" id="employeeSummary"></p>
+          <div class="table-wrap"><table><thead><tr><th>Nama</th><th>No ID Card</th><th>Jabatan</th><th>Departemen</th><th>Lokasi Kerja</th><th>Detail Pekerjaan</th><th>Tim</th><th>Atasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="employeeTable"><tr><td colspan="10" class="empty-cell">Memuat data karyawan...</td></tr></tbody></table></div>
+          <button type="button" class="secondary-button" id="employeeMore" hidden style="margin-top:12px">Tampilkan lebih banyak</button>
+        </article>
+      </section>
       <section class="page" id="page-notifications">
         <div class="page-heading">
           <div>
@@ -542,6 +570,7 @@
 <script type="module" src="repairs-firebase.js"></script>
 <script type="module" src="vehicles-firebase.js"></script>
 <script type="module" src="meals-firebase.js"></script>
+<script type="module" src="employees-firebase.js"></script>
 <script type="module" src="shell.js"></script>
 <script type="module" src="procurement-firebase.js"></script>
 <script type="module" src="import-inventory.js"></script>
