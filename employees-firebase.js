@@ -9,6 +9,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   where,
   serverTimestamp
@@ -233,25 +234,32 @@ function openForm(employee = null) {
             if (existingSnap.exists()) {
               throw new Error(`Karyawan dengan NIK/Employee ID "${nik}" sudah ada di database.`);
             }
-            payload.createdAt = serverTimestamp();
-            await setDoc(docRef, payload);
+          }
+
+          const batch = writeBatch(db);
+
+          if (!isEdit) {
+            batch.set(docRef, { ...payload, createdAt: serverTimestamp() });
           } else {
-            await updateDoc(docRef, payload);
+            batch.update(docRef, payload);
           }
 
           if (payload.linkedUid) {
-            try {
-              await updateDoc(doc(db, "users", payload.linkedUid), {
-                idCardNo: payload.idCardNo,
-                blockNo: payload.blockNo,
-                workLocation: payload.workLocation,
-                department: payload.department,
-                nik: payload.nik
-              });
-            } catch (err) {
-              console.error("Gagal memperbarui profil akun user:", err);
-              throw new Error("Data karyawan tersimpan, namun gagal memperbarui profil user linked: " + err.message);
-            }
+            const userRef = doc(db, "users", payload.linkedUid);
+            batch.update(userRef, {
+              idCardNo: payload.idCardNo,
+              blockNo: payload.blockNo,
+              workLocation: payload.workLocation,
+              department: payload.department,
+              nik: payload.nik
+            });
+          }
+
+          try {
+            await batch.commit();
+          } catch (err) {
+            console.error("Atomic write batch failed:", err);
+            throw new Error("Gagal menyimpan data karyawan & profil user linked: " + (err.message || "kesalahan jaringan/izin"));
           }
 
           toast(isEdit ? "Data karyawan diperbarui." : "Karyawan ditambahkan.");
@@ -315,7 +323,9 @@ $("empImportExcelBtn")?.addEventListener("click", () => {
       if (!rawRows.length) return toast("File Excel kosong atau format tidak sesuai.");
 
       const parsedRecords = [];
+      const seenInFile = new Set();
       let invalidCount = 0;
+      let inFileDupCount = 0;
 
       for (const row of rawRows) {
         const nik = String(row["NIK"] || row["Nik"] || row["NIK/Employee ID"] || "").trim();
@@ -331,6 +341,12 @@ $("empImportExcelBtn")?.addEventListener("click", () => {
           invalidCount++;
           continue;
         }
+
+        if (seenInFile.has(docId)) {
+          inFileDupCount++;
+          continue;
+        }
+        seenInFile.add(docId);
 
         const isDuplicate = employees.some(emp => emp.id === docId || emp.nik === nik);
 
