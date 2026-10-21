@@ -1,6 +1,5 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
 import { hasPerm } from "./perms.js";
-import { downloadXlsx, stamp } from "./xlsx-util.js";
 
 import {
   doc,
@@ -16,6 +15,8 @@ import {
 import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+
+(window.__gaModules ||= {}).stock = true;
 
 const $ = id => document.getElementById(id);
 
@@ -202,6 +203,7 @@ async function exportInventory() {
   if (button) button.disabled = true;
   try {
     const items = inventory.slice().sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    const { downloadXlsx, stamp } = await import("./xlsx-util.js");
     await downloadXlsx(`GA-Inventory-${stamp()}.xlsx`, [
       {
         name: "Barang",
