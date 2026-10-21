@@ -1026,7 +1026,7 @@ body.employee-mode .admin-home-footer{display:none}
 .table-scroll-top::-webkit-scrollbar-track{background:#E6ECE3;border-radius:8px}
 .table-scroll-top::-webkit-scrollbar-thumb{background:#7FA39B;border-radius:8px;border:3px solid #E6ECE3}
 .table-scroll-top::-webkit-scrollbar-thumb:hover{background:#477B79}
-.table-wrap::-webkit-scrollbar:horizontal{height:0;display:none}
+@media(min-width:701px){.table-wrap.top-scrolled{overflow-x:hidden}}
 @media(max-width:700px){.table-scroll-top{display:none}}
 
 /* Login: lanjut dengan akun terakhir */
