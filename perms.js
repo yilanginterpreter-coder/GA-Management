@@ -10,6 +10,7 @@ export const MENUS = {
   repairs: "Fasilitas & Perbaikan",
   meals: "Pesan Makan Siang & Malam",
   vendors: "Vendor",
+  employees: "Master Karyawan",
   reports: "Laporan"
 };
 
