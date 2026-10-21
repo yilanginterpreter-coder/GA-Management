@@ -26,6 +26,8 @@ import {
   permissionMap
 } from "./perms.js";
 
+(window.__gaModules ||= {}).shell = true;
+
 const $ = id => document.getElementById(id);
 
 const ROLE_LABELS = {
@@ -1730,6 +1732,11 @@ function setupTopScroll(wrap) {
   bar.innerHTML = "<div></div>";
   wrap.parentNode.insertBefore(bar, wrap);
   wrap._topScroll = bar;
+  wrap.classList.add("top-scrolled");
+  wrap.addEventListener("wheel", e => {
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+    if (dx) { bar.scrollLeft += dx; e.preventDefault(); }
+  }, { passive: false });
 
   const table = wrap.querySelector("table");
   if (table && "ResizeObserver" in window) {
