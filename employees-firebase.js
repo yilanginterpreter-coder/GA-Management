@@ -40,7 +40,7 @@ function toast(text) {
   else alert(text);
 }
 
-const isStaff = () => !!profile && ["main_admin", "ga_admin", "admin_operational"].includes(profile.role);
+const isStaff = () => !!profile && profile.role === "main_admin";
 
 async function loadData() {
   if (!user || !isStaff()) return;
@@ -219,6 +219,10 @@ function openForm(employee = null) {
           const docRef = doc(db, "employeeMaster", docId);
 
           if (!isEdit) {
+            const existingSnap = await getDoc(docRef);
+            if (existingSnap.exists()) {
+              throw new Error(`Karyawan dengan NIK/Employee ID "${nik}" sudah ada di database.`);
+            }
             payload.createdAt = serverTimestamp();
             await setDoc(docRef, payload);
           } else {
@@ -279,6 +283,77 @@ $("employeeMasterTable")?.addEventListener("click", async event => {
       ]
     );
   }
+});
+
+$("empImportExcelBtn")?.addEventListener("click", () => {
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".xlsx, .xls";
+  fileInput.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const XLSX = window.XLSX || await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.mjs");
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+
+      if (!rows.length) return toast("File Excel kosong atau format tidak sesuai.");
+
+      let successCount = 0;
+      let skipCount = 0;
+
+      for (const row of rows) {
+        const nik = String(row["NIK"] || row["Nik"] || row["NIK/Employee ID"] || "").trim();
+        const name = String(row["Nama"] || row["Nama Lengkap"] || row["Name"] || "").trim();
+
+        if (!nik || !name) {
+          skipCount++;
+          continue;
+        }
+
+        const docId = nik.replace(/[^A-Za-z0-9_-]/g, "");
+        const docRef = doc(db, "employeeMaster", docId);
+
+        const payload = {
+          nik,
+          name,
+          idCardNo: String(row["No ID Card"] || row["ID Card"] || "").trim(),
+          blockNo: String(row["No Blok"] || row["Blok"] || "").trim(),
+          workLocation: String(row["Lokasi Kerja"] || row["Nama Lokasi Kerja"] || "").trim(),
+          department: String(row["Departemen"] || row["Department"] || "").trim(),
+          position: String(row["Jabatan"] || row["Position"] || "").trim(),
+          team: String(row["Tim"] || row["Team"] || "").trim(),
+          supervisor: String(row["Supervisor"] || row["Atasan"] || "").trim(),
+          email: String(row["Email"] || "").trim(),
+          employmentStatus: String(row["Status Kepegawaian"] || "Tetap").trim(),
+          activeStatus: String(row["Status Aktif"] || "Aktif").trim(),
+          jobDescription: String(row["Uraian Tugas"] || row["Job Description"] || "").trim(),
+          updatedAt: serverTimestamp()
+        };
+
+        const existingSnap = await getDoc(docRef);
+        if (!existingSnap.exists()) {
+          payload.createdAt = serverTimestamp();
+          await setDoc(docRef, payload);
+          successCount++;
+        } else {
+          await updateDoc(docRef, payload);
+          successCount++;
+        }
+      }
+
+      toast(`Import selesai: ${successCount} data berhasil diproses, ${skipCount} dilewati.`);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      toast("Gagal mengimpor file Excel: " + (err.message || "format salah"));
+    }
+  };
+  fileInput.click();
 });
 
 $("empExportExcelBtn")?.addEventListener("click", async () => {

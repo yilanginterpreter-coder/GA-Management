@@ -231,6 +231,20 @@
 </div>    
 </article>
         <article class="panel"><div class="panel-heading"><div><h3>Riwayat Transaksi</h3><p>Catatan barang masuk dan keluar</p></div></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode Barang</th><th>Nama Barang</th><th>Jenis</th><th>Jumlah</th><th>Catatan</th></tr></thead><tbody id="transactionTable"></tbody></table></div></article>
+        <article class="panel" id="correctionsApprovalPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <h3>Persetujuan Koreksi Stok (Main Admin)</h3>
+              <p>Daftar pengajuan koreksi stok dari GA Admin yang memerlukan persetujuan Main Admin / Owner.</p>
+            </div>
+            <i class="fa-solid fa-clipboard-check"></i>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Tanggal</th><th>Kode</th><th>Nama Barang</th><th>Pengaju</th><th>Stok Sistem</th><th>Stok Usulan</th><th>Selisih</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody id="correctionsTable"><tr><td colspan="9" class="empty-cell">Memuat pengajuan koreksi...</td></tr></tbody>
+          </table></div>
+        </article>
+
         <article class="panel" id="firebaseTransactionPanel">
           <div class="panel-heading"><div><h3>Riwayat Transaksi Stok</h3><p>Transaksi Firestore dengan audit pengguna dan perubahan stok.</p></div></div>
           <div class="table-wrap"><table>

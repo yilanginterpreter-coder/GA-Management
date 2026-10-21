@@ -998,8 +998,11 @@ service cloud.firestore {
     }
 
     match /employeeMaster/{employeeId} {
-      allow get, list: if activeUser();
-      allow create, update, delete: if canRead();
+      allow get, list: if activeUser() && (
+        isMain() ||
+        resource.data.linkedUid == request.auth.uid
+      );
+      allow create, update, delete: if isMain();
     }
 
     match /goodsReceipts/{grId} {

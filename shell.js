@@ -201,7 +201,7 @@ function goto(page) {
 // Halaman lama memanggil showPage(...) lewat onclick; arahkan ke sini.
 window.showPage = name => goto(name);
 
-const NAV_PAGE = { requests: "requests", repairs: "repairs", "vehicle-requests": "vehicles", meals: "meals", history: "history", profile: "profile" };
+const NAV_PAGE = { home: "home", requests: "requests", repairs: "repairs", "vehicle-requests": "vehicles", meals: "meals", history: "history", profile: "profile" };
 
 function syncEmployeeNav(page) {
   const key = NAV_PAGE[page];
@@ -1410,7 +1410,7 @@ $("bellButton")?.addEventListener("click", event => {
   goto("notifications");
 });
 
-const NAV_TARGET = { requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", meals: "meals", history: "history", profile: "profile" };
+const NAV_TARGET = { home: "home", requests: "requests", repairs: "repairs", vehicles: "vehicle-requests", meals: "meals", history: "history", profile: "profile" };
 
 document.querySelectorAll("#mobileBottomNav .nav-item").forEach(btn => {
   btn.addEventListener("click", () => goto(NAV_TARGET[btn.dataset.nav] || "requests"));

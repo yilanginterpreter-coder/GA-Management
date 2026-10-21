@@ -18,6 +18,7 @@ const $ = id => document.getElementById(id);
 
 let inventory = [];
 let transactions = [];
+let corrections = [];
 let busy = false;
 let ready = false;
 let activeRole = null;
@@ -296,6 +297,39 @@ const filteredInventory = inventory.filter(item => {
       : `<tr><td colspan="9" class="empty-cell">Belum ada transaksi operasional.</td></tr>`;
   }
 
+  const corrPanel = $("correctionsApprovalPanel");
+  const isMainAdmin = activeRole === "main_admin";
+  if (corrPanel) {
+    corrPanel.hidden = !isMainAdmin;
+  }
+  const corrTable = $("correctionsTable");
+  if (corrTable && isMainAdmin) {
+    const pending = corrections.filter(c => c.status === "Menunggu Approval");
+    corrTable.innerHTML = pending.length
+      ? pending.map(c => {
+          const diff = (c.proposedStock ?? 0) - (c.currentStock ?? 0);
+          const diffText = diff > 0 ? `+${diff}` : `${diff}`;
+          return `
+            <tr>
+              <td>${html(c.createdAt ? new Date(c.createdAt.seconds * 1000).toISOString().slice(0, 10) : "-")}</td>
+              <td>${html(c.code || c.itemId)}</td>
+              <td>${html(c.name)}</td>
+              <td>${html(c.requesterName || "-")} <small>(${html(c.requesterRole || "-")})</small></td>
+              <td>${html(c.currentStock)} ${html(c.unit || "")}</td>
+              <td><strong>${html(c.proposedStock)}</strong> ${html(c.unit || "")}</td>
+              <td><span class="status-badge ${diff >= 0 ? "" : "warning"}">${html(diffText)}</span></td>
+              <td><span class="status-badge warning">${html(c.status)}</span></td>
+              <td>
+                <div class="row-actions">
+                  <button type="button" class="small-action" data-corr-act="approve" data-corr-id="${html(c.id)}">Setujui</button>
+                  <button type="button" class="small-action delete" data-corr-act="reject" data-corr-id="${html(c.id)}">Tolak</button>
+                </div>
+              </td>
+            </tr>`;
+        }).join("")
+      : `<tr><td colspan="9" class="empty-cell">Tidak ada pengajuan koreksi stok yang menunggu persetujuan.</td></tr>`;
+  }
+
   const dashboard = $("dashboardStock");
 
   if (dashboard) {
@@ -347,9 +381,10 @@ async function refresh() {
   const generation = authGeneration;
   const uid = auth.currentUser?.uid;
 
-  const [items, records] = await Promise.all([
+  const [items, records, corrDocs] = await Promise.all([
     getDocs(collection(db, "inventory")),
-    getDocs(collection(db, "transactions"))
+    getDocs(collection(db, "transactions")),
+    getDocs(collection(db, "inventoryCorrections"))
   ]);
 
   if (
@@ -374,9 +409,110 @@ async function refresh() {
       (a.createdAt?.seconds || 0)
   );
 
+  corrections = corrDocs.docs.map(d => ({
+    ...d.data(),
+    id: d.id
+  }));
+
   ready = true;
   draw();
 }
+
+async function decideCorrection(correctionId, action) {
+  const { user, profile } = await getAuthorizedProfile();
+  if (profile.role !== "main_admin") {
+    throw new Error("Hanya Main Admin / Owner yang dapat menyetujui atau menolak koreksi stok.");
+  }
+
+  const corrRef = doc(db, "inventoryCorrections", correctionId);
+
+  await runTransaction(db, async tx => {
+    const corrSnap = await tx.get(corrRef);
+    if (!corrSnap.exists()) throw new Error("Pengajuan koreksi tidak ditemukan.");
+
+    const corrData = corrSnap.data();
+    if (corrData.status !== "Menunggu Approval") {
+      throw new Error(`Koreksi stok ini sudah diproses sebelumnya (Status: ${corrData.status}).`);
+    }
+
+    if (action === "approve") {
+      const itemRef = doc(db, "inventory", corrData.itemId);
+      const itemSnap = await tx.get(itemRef);
+      if (!itemSnap.exists()) throw new Error("Barang terkait tidak ditemukan.");
+
+      const itemData = itemSnap.data();
+      const newStock = Number(corrData.proposedStock);
+      const currentStock = itemData.stock;
+      const diff = newStock - currentStock;
+      const type = diff >= 0 ? "Masuk" : "Keluar";
+      const qty = Math.abs(diff);
+
+      const trxRef = doc(collection(db, "transactions"));
+
+      tx.update(itemRef, {
+        stock: newStock,
+        lastTransactionId: trxRef.id,
+        lastStockBefore: currentStock,
+        ...(corrData.photoData ? { photoData: corrData.photoData } : {})
+      });
+
+      tx.set(trxRef, {
+        itemId: corrData.itemId,
+        code: itemData.code,
+        name: corrData.name || itemData.name,
+        type: type,
+        quantity: qty,
+        stockBefore: currentStock,
+        stockAfter: newStock,
+        date: localDate(),
+        note: `Koreksi Stok Disetujui Main Admin (Diajukan oleh: ${corrData.requesterName})`,
+        createdBy: user.uid,
+        createdByName: profile.name,
+        createdByRole: profile.role,
+        createdAt: serverTimestamp(),
+        testOnly: false
+      });
+
+      tx.update(corrRef, {
+        status: "Disetujui",
+        decidedBy: user.uid,
+        decidedByName: profile.name,
+        decidedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      tx.update(corrRef, {
+        status: "Ditolak",
+        decidedBy: user.uid,
+        decidedByName: profile.name,
+        decidedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  });
+
+  message(action === "approve" ? "Koreksi stok berhasil disetujui & diterapkan." : "Pengajuan koreksi stok ditolak.");
+  await refresh();
+}
+
+document.addEventListener("click", async event => {
+  const corrBtn = event.target.closest("[data-corr-act]");
+  if (!corrBtn || busy) return;
+  const action = corrBtn.dataset.corrAct;
+  const id = corrBtn.dataset.corrId;
+
+  corrBtn.disabled = true;
+  busy = true;
+  try {
+    await decideCorrection(id, action);
+  } catch (err) {
+    console.error(err);
+    message(err.message || "Gagal memproses koreksi.");
+  } finally {
+    busy = false;
+    corrBtn.disabled = false;
+  }
+});
 
 // Foto disimpan sebagai JPEG kecil dalam dokumen Firestore (tanpa Storage).
 // Batas sengaja ketat agar tetap jauh di bawah batas dokumen Firestore 1 MiB.
