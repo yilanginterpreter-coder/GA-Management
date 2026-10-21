@@ -670,12 +670,14 @@ function openEditInventoryForm(itemId) {
     return message("Barang tidak ditemukan.");
   }
 
+  const isMainAdmin = activeRole === "main_admin";
+
   openModal(
     "Edit Barang",
     `
       <div class="field">
-        <label>Kode Barang</label>
-        <input value="${html(item.code)}" disabled>
+        <label>Kode Barang ${isMainAdmin ? "*" : ""}</label>
+        <input name="code" value="${html(item.code)}" ${isMainAdmin ? "required maxlength='60'" : "disabled"}>
       </div>
 
       <div class="field">
@@ -738,8 +740,10 @@ function openEditInventoryForm(itemId) {
 }
 
 async function saveEditInventory(itemId, data) {
-  await getAuthorizedProfile();
+  const { user, profile } = await getAuthorizedProfile();
+  const isMainAdmin = profile.role === "main_admin";
 
+  const code = String(data.code || "").trim();
   const name = String(data.name || "").trim();
   const category = String(data.category || "").trim();
   const unit = String(data.unit || "").trim();
@@ -771,79 +775,71 @@ async function saveEditInventory(itemId, data) {
   }
 
   const itemRef = doc(db, "inventory", itemId);
-  const { user, profile } = await getAuthorizedProfile();
 
   const itemSnap = await getDoc(itemRef);
   if (!itemSnap.exists()) throw new Error("Barang tidak ditemukan.");
   const item = itemSnap.data();
 
-  let stockCorrectionSubmitted = false;
+  const proposedStock = (data.actualStock !== undefined && data.actualStock !== "")
+    ? Number(data.actualStock)
+    : item.stock;
 
-  if (data.actualStock !== undefined && data.actualStock !== "") {
-    const actual = Number(data.actualStock);
-    if (!/^\d+$/.test(String(data.actualStock).trim()) || !Number.isSafeInteger(actual)) {
-      throw new Error("Stok Aktual (Koreksi) harus berupa bilangan bulat 0 atau lebih.");
-    }
-
-    if (actual !== item.stock) {
-      if (profile.role === "main_admin") {
-        const diff = actual - item.stock;
-        const type = diff >= 0 ? "Masuk" : "Keluar";
-        const qty = Math.abs(diff);
-        const trxRef = doc(collection(db, "transactions"));
-
-        await runTransaction(db, async tx => {
-          tx.update(itemRef, {
-            name, category, unit, location: storageLocation, minimum, specification,
-            stock: actual, lastTransactionId: trxRef.id, lastStockBefore: item.stock,
-            ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
-          });
-
-          tx.set(trxRef, {
-            itemId: itemId, code: item.code, name: name, type: type, quantity: qty,
-            stockBefore: item.stock, stockAfter: actual, date: localDate(),
-            note: "Penyesuaian Stok Langsung oleh Main Admin",
-            createdBy: user.uid, createdByName: profile.name, createdByRole: profile.role,
-            createdAt: serverTimestamp(), testOnly: false
-          });
-        });
-        return;
-      } else {
-        const corrRef = doc(collection(db, "inventoryCorrections"));
-        await setDoc(corrRef, {
-          itemId: itemId,
-          code: item.code,
-          name: name,
-          unit: unit,
-          currentStock: item.stock,
-          proposedStock: actual,
-          requesterUid: user.uid,
-          requesterName: profile.name,
-          requesterRole: profile.role,
-          status: "Menunggu Approval",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          ...(data.photoData ? { photoData: data.photoData } : {})
-        });
-        stockCorrectionSubmitted = true;
-      }
-    }
-  }
-
-  await runTransaction(db, async tx => {
-    tx.update(itemRef, {
-      name,
-      category,
-      unit,
-      location: storageLocation,
-      minimum,
-      specification,
+  if (isMainAdmin) {
+    const diff = proposedStock - item.stock;
+    const updatePayload = {
+      name, category, unit, location: storageLocation, minimum, specification,
       ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
-    });
-  });
+    };
+    if (code && code !== item.code) updatePayload.code = code;
 
-  if (stockCorrectionSubmitted) {
-    message("Pengajuan koreksi stok dikirimkan untuk persetujuan Main Admin.");
+    if (diff !== 0) {
+      const type = diff >= 0 ? "Masuk" : "Keluar";
+      const qty = Math.abs(diff);
+      const trxRef = doc(collection(db, "transactions"));
+
+      await runTransaction(db, async tx => {
+        tx.update(itemRef, {
+          ...updatePayload,
+          stock: proposedStock,
+          lastTransactionId: trxRef.id,
+          lastStockBefore: item.stock
+        });
+
+        tx.set(trxRef, {
+          itemId: itemId, code: updatePayload.code || item.code, name: name, type: type, quantity: qty,
+          stockBefore: item.stock, stockAfter: proposedStock, date: localDate(),
+          note: "Penyesuaian Stok Langsung oleh Main Admin",
+          createdBy: user.uid, createdByName: profile.name, createdByRole: profile.role,
+          createdAt: serverTimestamp(), testOnly: false
+        });
+      });
+    } else {
+      await updateDoc(itemRef, updatePayload);
+    }
+    message("Data barang berhasil diperbarui.");
+  } else {
+    // Non-main staff MUST submit an inventoryCorrection document
+    const corrRef = doc(collection(db, "inventoryCorrections"));
+    await setDoc(corrRef, {
+      itemId: itemId,
+      code: item.code,
+      name: name,
+      category: category,
+      unit: unit,
+      location: storageLocation,
+      minimum: minimum,
+      specification: specification,
+      currentStock: item.stock,
+      proposedStock: proposedStock,
+      requesterUid: user.uid,
+      requesterName: profile.name,
+      requesterRole: profile.role,
+      status: "Menunggu Approval",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...(data.photoData ? { photoData: data.photoData } : {})
+    });
+    message("Pengajuan koreksi & perubahan data barang telah dikirimkan untuk persetujuan Main Admin.");
   }
 }
 function openInventoryForm() {
