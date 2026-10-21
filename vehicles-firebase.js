@@ -17,6 +17,8 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
 
+(window.__gaModules ||= {}).vehicles = true;
+
 const $ = id => document.getElementById(id);
 
 const MANAGER_ROLES = ["main_admin", "ga_admin"];
