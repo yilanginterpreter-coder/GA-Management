@@ -46,7 +46,8 @@ const STAFF_TILES = [
   { id: "vehicles", perm: ["vehicles"], gate: "vehicles", page: "vehicle-hub", label: "Kendaraan", zh: "车辆", icon: "fa-car" },
   { id: "repairs", perm: ["repairs"], gate: "repairs", page: "repairs", label: "Fasilitas & Perbaikan", zh: "维修设施", icon: "fa-screwdriver-wrench" },
   { id: "meals", perm: ["meals"], gate: "meals", page: "canteen", label: "Pesan Makan Siang & Malam", zh: "预订餐", icon: "fa-utensils" },
-  { id: "vendors", perm: ["vendors"], gate: "vendors", page: "vendors", label: "Vendor", zh: "供应商", icon: "fa-truck-field" }
+  { id: "vendors", perm: ["vendors"], gate: "vendors", page: "vendors", label: "Vendor", zh: "供应商", icon: "fa-truck-field" },
+  { id: "employees", perm: ["employees"], gate: "employees", page: "employees", label: "Master Karyawan", zh: "员工主数据", icon: "fa-id-card" }
 ];
 
 const EMPLOYEE_TILES = [
@@ -73,7 +74,7 @@ let profile = null;
 let generation = 0;
 let currentPage = "home";
 let bellTimer = null;
-let data = { service: [], repairs: [], access: [], vehicles: [], meals: [] };
+let data = { service: [], repairs: [], access: [], vehicles: [], meals: [], edits: [] };
 let notifFilter = "all"; // "all" | "unread"
 
 const isStaff = () => !!profile && STAFF_ROLES.includes(profile.role);
@@ -1036,6 +1037,19 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)} hari lalu`;
 }
 
+const EDIT_LABELS = {
+  code: "kode", name: "nama", category: "kategori", unit: "satuan",
+  location: "lokasi", minimum: "minimum", stock: "stok", specification: "spesifikasi", photoData: "foto"
+};
+
+function editSummary(r) {
+  return Object.keys(r.changes || {}).map(k => {
+    if (k === "photoData") return "foto";
+    const from = r.before?.[k];
+    return `${EDIT_LABELS[k] || k}: ${from ?? "-"} → ${r.changes[k]}`;
+  }).join("; ");
+}
+
 function bellList() {
   if (isStaff()) {
     const list = [];
@@ -1072,6 +1086,24 @@ function bellList() {
         title: `Permintaan kendaraan · ${r.requesterName || "-"}`,
         sub: `${r.destination || "-"} — ${r.departDate || ""} ${r.departTime || ""}`
       });
+    }
+
+    for (const r of (data.edits || [])) {
+      if (isMain() && r.status === "Menunggu") {
+        list.push({
+          kind: "itemedit", id: r.id, ts: r.createdAt, raw: r,
+          icon: "fa-pen-to-square",
+          title: `Permintaan edit barang · ${r.requesterName || "-"}`,
+          sub: `${r.itemCode || "-"} — ${editSummary(r)}${r.reason ? ` (${r.reason})` : ""}`
+        });
+      } else if (!isMain() && r.requesterUid === user?.uid) {
+        list.push({
+          kind: "itemedit", id: `${r.id}-${r.status}`, ts: r.updatedAt || r.createdAt, raw: r,
+          icon: "fa-pen-to-square",
+          title: `Edit barang ${r.itemCode || ""}`,
+          sub: r.status === "Menunggu" ? "Menunggu persetujuan Main Admin" : `Status: ${r.status}`
+        });
+      }
     }
 
     const pendingMeals = (data.meals || []).filter(x => x.status === "Menunggu");
@@ -1182,6 +1214,12 @@ function renderNotificationsPage() {
                  <button type="button" class="small-action delete" data-access-act="Ditolak" data-id="${esc(item.id)}">Tolak</button>
                </div>`
             : ""}
+          ${item.kind === "itemedit" && isMain() && item.raw?.status === "Menunggu"
+            ? `<div class="notif-actions">
+                 <button type="button" class="small-action" data-edit-act="Disetujui" data-id="${esc(item.id)}">Setujui</button>
+                 <button type="button" class="small-action delete" data-edit-act="Ditolak" data-id="${esc(item.id)}">Tolak</button>
+               </div>`
+            : ""}
         </div>
         ${!isRead ? `<span class="notif-unread-dot" title="Belum dibaca"></span>` : ""}
       </div>`;
@@ -1210,6 +1248,12 @@ function renderBell() {
                    <button type="button" class="small-action delete" data-access-act="Ditolak" data-id="${esc(item.id)}">Tolak</button>
                  </span>`
               : `<small>Menunggu persetujuan Main Admin</small>`)
+          : ""}
+        ${item.kind === "itemedit" && isMain() && item.raw?.status === "Menunggu"
+          ? `<span class="bell-actions">
+               <button type="button" class="small-action" data-edit-act="Disetujui" data-id="${esc(item.id)}">Setujui</button>
+               <button type="button" class="small-action delete" data-edit-act="Ditolak" data-id="${esc(item.id)}">Tolak</button>
+             </span>`
           : ""}
       </span>
     </div>`;
@@ -1247,6 +1291,15 @@ async function loadBell() {
       }
       if (current !== generation) return;
 
+      let edits = [];
+      try {
+        const es = await getDocs(collection(db, "itemEditRequests"));
+        edits = es.docs.map(d => ({ ...d.data(), id: d.id }));
+      } catch (error) {
+        console.warn("Permintaan edit barang tidak dapat dimuat:", error?.code);
+      }
+      if (current !== generation) return;
+
       let meals = [];
       if (isMain()) {
         try {
@@ -1263,7 +1316,8 @@ async function loadBell() {
         repairs: repairs.docs.map(d => ({ ...d.data(), id: d.id })),
         access: access.docs.map(d => ({ ...d.data(), id: d.id })),
         vehicles,
-        meals
+        meals,
+        edits
       };
     } else {
       const uid = user.uid;
@@ -1306,6 +1360,16 @@ async function loadBell() {
     if (current !== generation) return;
     console.warn("Notifikasi tidak dapat dimuat:", error?.code || error?.message);
   }
+}
+
+async function decideEdit(id, decision) {
+  if (typeof window.decideItemEditRequest !== "function") {
+    throw new Error("Modul Inventory belum siap. Muat ulang halaman.");
+  }
+  await window.decideItemEditRequest(id, decision);
+  toast(decision === "Disetujui" ? "Edit barang disetujui dan diterapkan." : "Permintaan edit ditolak.");
+  await loadBell();
+  document.dispatchEvent(new Event("ga:data-changed-inventory"));
 }
 
 async function decideAccess(id, decision) {
@@ -1359,6 +1423,11 @@ function handleNotifItemClick(kind, id) {
     } else {
       goto("requests");
     }
+    return;
+  }
+
+  if (kind === "itemedit") {
+    if (isStaff() && can("inventory")) goto("inventory");
     return;
   }
 
@@ -1431,7 +1500,21 @@ $("markAllReadButton")?.addEventListener("click", () => {
   markAllNotifsAsRead();
 });
 
+function handleEditAct(event) {
+  const edit = event.target.closest("[data-edit-act]");
+  if (!edit) return false;
+  event.stopPropagation();
+  edit.disabled = true;
+  decideEdit(edit.dataset.id, edit.dataset.editAct).catch(error => {
+    console.error(error);
+    toast(errorText(error));
+    edit.disabled = false;
+  });
+  return true;
+}
+
 $("notificationsList")?.addEventListener("click", event => {
+  if (handleEditAct(event)) return;
   const act = event.target.closest("[data-access-act]");
   if (act) {
     event.stopPropagation();
@@ -1459,6 +1542,7 @@ $("avatarButton")?.addEventListener("click", event => {
 
 $("bellPanel")?.addEventListener("click", event => {
   event.stopPropagation();
+  if (handleEditAct(event)) return;
   const act = event.target.closest("[data-access-act]");
   if (act) {
     act.disabled = true;
@@ -1639,7 +1723,52 @@ $("savePoConfigBtn")?.addEventListener("click", async event => {
 
 /* ---------- Tabel -> kartu di HP: isi data-label dari header ---------- */
 
+function setupTopScroll(wrap) {
+  if (wrap._topScroll) return;
+  const bar = document.createElement("div");
+  bar.className = "table-scroll-top";
+  bar.innerHTML = "<div></div>";
+  wrap.parentNode.insertBefore(bar, wrap);
+  wrap._topScroll = bar;
+
+  const table = wrap.querySelector("table");
+  if (table && "ResizeObserver" in window) {
+    new ResizeObserver(() => syncTopScroll()).observe(table);
+    new ResizeObserver(() => syncTopScroll()).observe(wrap);
+  }
+
+  let lock = false;
+  bar.addEventListener("scroll", () => {
+    if (lock) { lock = false; return; }
+    lock = true;
+    wrap.scrollLeft = bar.scrollLeft;
+  });
+  wrap.addEventListener("scroll", () => {
+    if (lock) { lock = false; return; }
+    lock = true;
+    bar.scrollLeft = wrap.scrollLeft;
+  });
+}
+
+function syncTopScroll() {
+  document.querySelectorAll(".table-wrap").forEach(wrap => {
+    setupTopScroll(wrap);
+    const bar = wrap._topScroll;
+    if (wrap._topScroll && wrap.previousElementSibling !== wrap._topScroll) {
+      wrap.parentNode.insertBefore(wrap._topScroll, wrap);
+    }
+    const table = wrap.querySelector("table");
+    if (!bar || !table) return;
+    const width = table.scrollWidth;
+    bar.firstChild.style.width = width + "px";
+    bar.hidden = width <= wrap.clientWidth + 1;
+  });
+}
+
+window.addEventListener("resize", syncTopScroll);
+
 function labelTables() {
+  syncTopScroll();
   document.querySelectorAll(".table-wrap table").forEach(table => {
     table.classList.add("stack");
     const heads = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());
@@ -1669,7 +1798,7 @@ onAuthStateChanged(auth, async current => {
 
   user = null;
   profile = null;
-  data = { service: [], repairs: [], access: [], vehicles: [], meals: [] };
+  data = { service: [], repairs: [], access: [], vehicles: [], meals: [], edits: [] };
   clearInterval(bellTimer);
   closeMenus();
   closeShellModal();
