@@ -1,6 +1,6 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
 import { hasPerm } from "./perms.js";
-import { loadXLSX, downloadXlsx, stamp } from "./xlsx-util.js";
+const xl = () => import("./xlsx-util.js");
 
 import {
   collection,
@@ -16,6 +16,8 @@ import {
 import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+
+(window.__gaModules ||= {}).employees = true;
 
 const $ = id => document.getElementById(id);
 
@@ -327,6 +329,7 @@ $("exportEmployeesButton")?.addEventListener("click", async event => {
   const button = event.currentTarget;
   button.disabled = true;
   try {
+    const { downloadXlsx, stamp } = await xl();
     await downloadXlsx(`Master-Karyawan-${stamp()}.xlsx`, [{
       name: "Master Karyawan",
       widths: FIELDS.map(f => f[2]),
@@ -343,6 +346,7 @@ $("exportEmployeesButton")?.addEventListener("click", async event => {
 
 $("templateEmployeesButton")?.addEventListener("click", async () => {
   try {
+    const { downloadXlsx } = await xl();
     await downloadXlsx("Template-Master-Karyawan.xlsx", [{
       name: "Master Karyawan",
       widths: FIELDS.map(f => f[2]),
@@ -396,6 +400,7 @@ $("importEmployeesFile")?.addEventListener("change", async event => {
   if (!file || busy) return;
 
   try {
+    const { loadXLSX } = await xl();
     const XLSX = await loadXLSX();
     const book = XLSX.read(await file.arrayBuffer(), { type: "array" });
     const sheet = book.Sheets[book.SheetNames[0]];
