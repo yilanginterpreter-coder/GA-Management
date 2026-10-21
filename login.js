@@ -1,4 +1,3 @@
-
 import {
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -31,6 +30,62 @@ const logoutButton = document.getElementById("logout-button");
 const togglePasswordBtn = document.getElementById("toggle-password");
 const togglePasswordIcon = document.getElementById("toggle-password-icon");
 const loginSubmitBtn = document.getElementById("login-submit-btn");
+const loginFields = document.getElementById("login-fields");
+const loginResume = document.getElementById("login-resume");
+const loginSwitch = document.getElementById("login-switch");
+
+// Akun terakhir diingat di perangkat ini; sesi tetap tersimpan sampai logout.
+const LAST_KEY = "ga_last_login";
+const ENTERED_KEY = "ga_entered";
+let resumeMode = false;
+let pendingResume = null;
+
+function store(kind) {
+  try { return kind === "session" ? sessionStorage : localStorage; } catch { return null; }
+}
+
+function readLast() {
+  try { return JSON.parse(store("local")?.getItem(LAST_KEY) || "null") || {}; } catch { return {}; }
+}
+
+function writeLast(info) {
+  try { store("local")?.setItem(LAST_KEY, JSON.stringify(info)); } catch {}
+}
+
+function setEntered(flag) {
+  try {
+    if (flag) store("session")?.setItem(ENTERED_KEY, "1");
+    else store("session")?.removeItem(ENTERED_KEY);
+  } catch {}
+}
+
+const hasEntered = () => {
+  try { return store("session")?.getItem(ENTERED_KEY) === "1"; } catch { return false; }
+};
+
+if (emailInput && readLast().email) emailInput.value = readLast().email;
+
+function setResume(on, info = {}) {
+  resumeMode = on;
+  if (loginFields) loginFields.hidden = on;
+  if (loginResume) loginResume.hidden = !on;
+  if (loginSwitch) loginSwitch.hidden = !on;
+
+  const title = document.querySelector(".login-header h2");
+  const sub = document.querySelector(".login-header p");
+  if (title) title.textContent = on ? "Selamat Datang Kembali" : "Selamat Datang";
+  if (sub) sub.textContent = on
+    ? "Tekan Masuk untuk melanjutkan dengan akun ini."
+    : "Silakan masuk dengan akun Anda untuk melanjutkan.";
+
+  if (on) {
+    const name = info.name || info.email || "Pengguna";
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join("") || "GA";
+    document.getElementById("login-resume-avatar").textContent = initials;
+    document.getElementById("login-resume-name").textContent = name;
+    document.getElementById("login-resume-email").textContent = info.email || "";
+  }
+}
 
 if (togglePasswordBtn && passwordInput && togglePasswordIcon) {
   togglePasswordBtn.addEventListener("click", () => {
@@ -220,7 +275,9 @@ function showProfile(name, role) {
   });
 }
 
-function showApp(role, name) {
+function showApp(role, name, email) {
+  if (email) writeLast({ email, name: name || "" });
+  setResume(false);
   if (loginScreen) loginScreen.hidden = true;
   if (appContent) appContent.hidden = false;
 
@@ -262,10 +319,18 @@ if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     showMessage("");
+
+    if (resumeMode && pendingResume) {
+      setEntered(true);
+      showApp(pendingResume.role, pendingResume.name, pendingResume.email);
+      return;
+    }
+
     setSubmittingState(true);
 
     try {
       await authPersistenceReady;
+      setEntered(true);
 
       const credential = await signInWithEmailAndPassword(
         auth,
@@ -286,6 +351,7 @@ if (loginForm) {
       showMessage("Login berhasil.", "success");
     } catch (error) {
       console.error("Login gagal:", error.code || error.message);
+      setEntered(false);
 
       await signOut(auth).catch(() => {});
 
@@ -305,6 +371,7 @@ if (loginForm) {
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
+      setEntered(false);
       await signOut(auth);
     } catch (error) {
       console.error("Logout gagal:", error.code);
@@ -319,6 +386,10 @@ showLogin();
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    pendingResume = null;
+    setResume(false);
+    if (emailInput && readLast().email) emailInput.value = readLast().email;
+    if (passwordInput) passwordInput.value = "";
     showLogin();
     return;
   }
@@ -333,7 +404,15 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const userData = await checkUserRole(user);
-    showApp(userData.role, userData.name);
+
+    if (hasEntered()) {
+      showApp(userData.role, userData.name, user.email);
+    } else {
+      // Sesi tersimpan: cukup tekan Masuk, tanpa mengetik email dan password.
+      pendingResume = { role: userData.role, name: userData.name, email: user.email };
+      setResume(true, pendingResume);
+      showLogin();
+    }
 // Data Inventory & Transaksi dimuat oleh stock-firebase.js.
 
   } catch (error) {
@@ -341,4 +420,10 @@ onAuthStateChanged(auth, async (user) => {
     await signOut(auth);
     showLogin("Akun belum memiliki akses yang valid.");
   }
+});
+
+loginSwitch?.addEventListener("click", async () => {
+  setEntered(false);
+  pendingResume = null;
+  await signOut(auth).catch(() => {});
 });
