@@ -1,11 +1,14 @@
 import { auth, db, authPersistenceReady } from "./firebase-init.js";
 import { hasPerm } from "./perms.js";
+import { downloadXlsx, stamp } from "./xlsx-util.js";
 
 import {
   doc,
   getDoc,
   collection,
   getDocs,
+  setDoc,
+  updateDoc,
   runTransaction,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
@@ -27,6 +30,14 @@ let authGeneration = 0;
 
 const canWrite = () =>
   ["main_admin", "ga_admin"].includes(activeRole) &&
+  hasPerm(activeProfile, "inventory");
+
+const isMainAdmin = () => activeRole === "main_admin";
+const canRequestEdit = () =>
+  ["ga_admin", "admin_operational"].includes(activeRole) &&
+  hasPerm(activeProfile, "inventory");
+const canExport = () =>
+  ["main_admin", "ga_admin", "admin_operational"].includes(activeRole) &&
   hasPerm(activeProfile, "inventory");
 
 const html = value =>
@@ -168,6 +179,59 @@ if (heading) {
     if (heading) heading.appendChild(trxButton);
   }
   if (trxButton) trxButton.hidden = !ready || !canWrite();
+
+  let exportButton = $("exportInventoryBtn");
+  if (!exportButton) {
+    const heading = page.querySelector(".page-heading");
+    const breaker = document.createElement("div");
+    breaker.className = "heading-break";
+    exportButton = document.createElement("button");
+    exportButton.id = "exportInventoryBtn";
+    exportButton.type = "button";
+    exportButton.className = "secondary-button";
+    exportButton.innerHTML = '<i class="fa-solid fa-file-export"></i> Export Excel';
+    exportButton.addEventListener("click", exportInventory);
+    if (heading) heading.append(breaker, exportButton);
+  }
+  exportButton.hidden = !ready || !canExport();
+}
+
+async function exportInventory() {
+  if (!ready) return message("Data belum dimuat.");
+  const button = $("exportInventoryBtn");
+  if (button) button.disabled = true;
+  try {
+    const items = inventory.slice().sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    await downloadXlsx(`GA-Inventory-${stamp()}.xlsx`, [
+      {
+        name: "Barang",
+        widths: [16, 44, 28, 22, 10, 10, 10, 20],
+        rows: [
+          ["Kode", "Nama Barang", "Spesifikasi", "Kategori", "Stok", "Minimum", "Satuan", "Lokasi"]
+        ].concat(items.map(i => [
+          i.code, i.name, i.specification || "", i.category,
+          Number(i.stock) || 0, Number(i.minimum) || 0, i.unit, i.location
+        ]))
+      },
+      {
+        name: "Transaksi Stok",
+        widths: [12, 16, 44, 9, 10, 12, 12, 40, 20],
+        rows: [
+          ["Tanggal", "Kode", "Nama Barang", "Jenis", "Jumlah", "Stok Sebelum", "Stok Sesudah", "Catatan", "Dicatat Oleh"]
+        ].concat(transactions.map(t => [
+          t.date || "", t.code || t.itemId || "", t.name || "", t.type || "",
+          Number(t.quantity) || 0, Number(t.stockBefore) || 0, Number(t.stockAfter) || 0,
+          t.note || "", t.createdByName || ""
+        ]))
+      }
+    ]);
+    message("File Excel diunduh.");
+  } catch (error) {
+    console.error(error);
+    message(error.message || "Export gagal.");
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 function ensureInventorySearch() {
   const table = $("firestoreInventoryTable");
@@ -260,11 +324,11 @@ const filteredInventory = inventory.filter(item => {
               `<td>${html(k === "specification" ? (i[k] || "-") : (i[k] ?? "-"))}</td>`
             ).join("")}
             <td>
-              ${canWrite()
+              ${isMainAdmin() || canRequestEdit()
                 ? `<button type="button"
                     class="btn btn-sm edit-firebase-item"
                     data-item-id="${html(i.id)}">
-                    Edit
+                    ${isMainAdmin() ? "Edit" : "Ajukan Edit"}
                    </button>`
                 : "-"}
             </td>
@@ -483,7 +547,7 @@ function openModal(title, fieldsHTML, mode) {
   modal.classList.add("open");
 }
 function openEditInventoryForm(itemId) {
-  if (!auth.currentUser || !canWrite()) {
+  if (!auth.currentUser || !(isMainAdmin() || canRequestEdit())) {
     return message("Akun ini tidak memiliki izin edit barang.");
   }
 
@@ -493,12 +557,16 @@ function openEditInventoryForm(itemId) {
     return message("Barang tidak ditemukan.");
   }
 
+  const main = isMainAdmin();
+
   openModal(
-    "Edit Barang",
+    main ? "Edit Barang" : "Ajukan Edit Barang",
     `
       <div class="field">
-        <label>Kode Barang</label>
-        <input value="${html(item.code)}" disabled>
+        <label>Kode Barang *</label>
+        <input name="code" required maxlength="60"
+          pattern="[A-Za-z0-9_\\-]{2,60}"
+          value="${html(item.code)}">
       </div>
 
       <div class="field">
@@ -520,13 +588,20 @@ function openEditInventoryForm(itemId) {
       </div>
 
       <div class="field">
+        <label>Stok Aktual *</label>
+        <input name="stock" type="number"
+          min="0" step="1" required
+          value="${html(item.stock)}">
+      </div>
+
+      <div class="field">
         <label>Minimum Stok *</label>
         <input name="minimum" type="number"
           min="0" step="1" required
           value="${html(item.minimum)}">
       </div>
 
-      <div class="field">
+      <div class="field full">
         <label>Lokasi *</label>
         <input name="location" required maxlength="150"
           value="${html(item.location)}">
@@ -541,7 +616,14 @@ function openEditInventoryForm(itemId) {
 
       ${photoField(item.photoData || "")}
       <div class="field full">
-        <p>Kode barang dan stok tidak dapat diedit langsung.</p>
+        <label>${main ? "Alasan perubahan (opsional)" : "Alasan perubahan *"}</label>
+        <input name="reason" maxlength="300" ${main ? "" : "required"}
+          placeholder="Contoh: salah input saat import / hasil stok opname">
+      </div>
+      <div class="field full">
+        <p><small>${main
+          ? "Perubahan stok dicatat otomatis sebagai transaksi koreksi, dan semua perubahan masuk catatan audit."
+          : "Perubahan baru berlaku setelah disetujui Main Admin."}</small></p>
       </div>
     `,
     "editInventory"
@@ -551,59 +633,237 @@ function openEditInventoryForm(itemId) {
   preparePhotoInput();
 }
 
-async function saveEditInventory(itemId, data) {
-  await getAuthorizedProfile();
-
+// Membaca & memeriksa isi formulir, mengembalikan hanya kolom yang berubah.
+function collectEditChanges(item, data) {
+  const code = String(data.code || "").trim().toUpperCase();
   const name = String(data.name || "").trim();
   const category = String(data.category || "").trim();
   const unit = String(data.unit || "").trim();
+  const location = String(data.location || "").trim();
   const specification = String(data.specification || "").trim();
-
-  if (specification.length > 200) {
-    throw new Error("Spesifikasi maksimal 200 karakter.");
-  }
-  const storageLocation = String(data.location || "").trim();
   const rawMinimum = String(data.minimum ?? "").trim();
-  const minimum = Number(rawMinimum);
+  const rawStock = String(data.stock ?? "").trim();
+
+  if (!/^[A-Z0-9_-]{2,60}$/.test(code)) {
+    throw new Error("Kode barang 2-60 karakter: huruf, angka, strip, atau garis bawah.");
+  }
+  if (specification.length > 200) throw new Error("Spesifikasi maksimal 200 karakter.");
 
   for (const [label, value, max] of [
     ["Nama barang", name, 150],
     ["Kategori", category, 100],
     ["Satuan", unit, 40],
-    ["Lokasi", storageLocation, 150]
+    ["Lokasi", location, 150]
   ]) {
     if (!value || value.length > max) {
       throw new Error(`${label} wajib diisi, maksimal ${max} karakter.`);
     }
   }
 
-  if (
-    !/^\d+$/.test(rawMinimum) ||
-    !Number.isSafeInteger(minimum)
-  ) {
+  if (!/^\d+$/.test(rawMinimum) || !Number.isSafeInteger(Number(rawMinimum))) {
     throw new Error("Minimum stok harus bilangan bulat 0 atau lebih.");
   }
+  if (!/^\d+$/.test(rawStock) || !Number.isSafeInteger(Number(rawStock))) {
+    throw new Error("Stok aktual harus bilangan bulat 0 atau lebih.");
+  }
+
+  const next = {
+    code, name, category, unit, location, specification,
+    minimum: Number(rawMinimum),
+    stock: Number(rawStock)
+  };
+  const current = { ...item, specification: item.specification || "" };
+
+  const changes = {};
+  for (const key of Object.keys(next)) {
+    if (next[key] !== current[key]) changes[key] = next[key];
+  }
+  if (data.photoData !== undefined && data.photoData !== (item.photoData || "")) {
+    changes.photoData = data.photoData;
+  }
+  return changes;
+}
+
+const FIELD_LABEL = {
+  code: "Kode", name: "Nama", category: "Kategori", unit: "Satuan",
+  location: "Lokasi", minimum: "Minimum", stock: "Stok", specification: "Spesifikasi",
+  photoData: "Foto"
+};
+
+// Main Admin: terapkan perubahan penuh (dipakai edit langsung & persetujuan).
+async function applyInventoryEdit(itemId, changes, context = {}) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Silakan login kembali.");
+
+  const profileSnap = await getDoc(doc(db, "users", user.uid));
+  const profile = profileSnap.data();
+  if (!profileSnap.exists() || profile.active !== true || profile.role !== "main_admin") {
+    throw new Error("Hanya Main Admin yang dapat menerapkan perubahan barang.");
+  }
+  if (!Object.keys(changes).length) throw new Error("Tidak ada perubahan.");
 
   const itemRef = doc(db, "inventory", itemId);
+  const trxRef = doc(collection(db, "transactions"));
+  const auditRef = doc(collection(db, "inventoryAudit"));
+  const requestRef = context.requestId ? doc(db, "itemEditRequests", context.requestId) : null;
 
   await runTransaction(db, async tx => {
-    const snapshot = await tx.get(itemRef);
+    const snap = await tx.get(itemRef);
+    if (!snap.exists()) throw new Error("Barang tidak ditemukan.");
+    const item = snap.data();
 
-    if (!snapshot.exists()) {
-      throw new Error("Barang tidak ditemukan.");
+    let requestSnap = null;
+    if (requestRef) {
+      requestSnap = await tx.get(requestRef);
+      if (!requestSnap.exists() || requestSnap.data().status !== "Menunggu") {
+        throw new Error("Permintaan sudah diproses.");
+      }
     }
 
-    tx.update(itemRef, {
-      name,
-      category,
-      unit,
-      location: storageLocation,
-      minimum,
-      specification,
-      ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
+    const moving = changes.code && changes.code !== itemId;
+    let newRef = null;
+    if (moving) {
+      newRef = doc(db, "inventory", changes.code);
+      const taken = await tx.get(newRef);
+      if (taken.exists()) throw new Error(`Kode ${changes.code} sudah dipakai barang lain.`);
+    }
+
+    const fields = { ...changes };
+    delete fields.code;
+    const stockChanged = "stock" in fields && fields.stock !== item.stock;
+    if (!stockChanged) delete fields.stock;
+
+    const audit = {};
+    for (const key of Object.keys(changes)) {
+      if (key === "photoData") audit.photoData = { from: item.photoData ? "ada" : "kosong", to: changes.photoData ? "diganti" : "dihapus" };
+      else if (key === "code") audit.code = { from: itemId, to: changes.code };
+      else if (key === "stock" && !stockChanged) continue;
+      else audit[key] = { from: item[key] ?? "", to: changes[key] };
+    }
+
+    if (moving) {
+      tx.set(newRef, { ...item, ...fields, code: changes.code });
+      tx.delete(itemRef);
+    } else {
+      const update = { ...fields };
+      if (stockChanged) {
+        const diff = fields.stock - item.stock;
+        update.lastTransactionId = trxRef.id;
+        update.lastStockBefore = item.stock;
+        tx.set(trxRef, {
+          itemId,
+          code: item.code,
+          name: item.name,
+          type: diff > 0 ? "Masuk" : "Keluar",
+          quantity: Math.abs(diff),
+          stockBefore: item.stock,
+          stockAfter: fields.stock,
+          date: localDate(),
+          note: `Koreksi stok oleh Main Admin${context.reason ? `: ${context.reason}` : ""}`.slice(0, 500),
+          createdBy: user.uid,
+          createdByName: profile.name,
+          createdByRole: profile.role,
+          createdAt: serverTimestamp(),
+          testOnly: false
+        });
+      }
+      if (Object.keys(update).length) tx.update(itemRef, update);
+    }
+
+    tx.set(auditRef, {
+      itemId,
+      itemCode: changes.code || item.code,
+      itemName: item.name,
+      action: moving ? "ganti-kode" : (stockChanged ? "koreksi-stok" : "edit"),
+      changes: audit,
+      reason: context.reason || "",
+      requestId: context.requestId || "",
+      requestedBy: context.requesterName || "",
+      byUid: user.uid,
+      byName: profile.name,
+      createdAt: serverTimestamp()
     });
+
+    if (requestRef) {
+      tx.update(requestRef, {
+        status: "Disetujui",
+        decidedBy: user.uid,
+        decidedByName: profile.name,
+        updatedAt: serverTimestamp()
+      });
+    }
   });
 }
+
+async function saveEditInventory(itemId, data) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Silakan login kembali.");
+
+  const item = inventory.find(i => i.id === itemId);
+  if (!item) throw new Error("Barang tidak ditemukan.");
+
+  const changes = collectEditChanges(item, data);
+  if (!Object.keys(changes).length) throw new Error("Tidak ada yang diubah.");
+  const reason = String(data.reason || "").trim();
+
+  if (isMainAdmin()) {
+    await applyInventoryEdit(itemId, changes, { reason });
+    return "Data barang berhasil diperbarui.";
+  }
+
+  if (!canRequestEdit()) throw new Error("Akun ini tidak memiliki izin edit barang.");
+  if (!reason) throw new Error("Isi alasan perubahan.");
+
+  const profileSnap = await getDoc(doc(db, "users", user.uid));
+  const profile = profileSnap.data();
+  const before = {};
+  for (const key of Object.keys(changes)) {
+    before[key] = key === "photoData" ? (item.photoData ? "ada" : "") : (item[key] ?? "");
+  }
+
+  await setDoc(doc(collection(db, "itemEditRequests")), {
+    itemId,
+    itemCode: item.code,
+    itemName: item.name,
+    requesterUid: user.uid,
+    requesterName: profile.name,
+    reason,
+    before,
+    changes,
+    status: "Menunggu",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  document.dispatchEvent(new Event("ga:data-changed"));
+  return "Permintaan edit dikirim. Menunggu persetujuan Main Admin.";
+}
+
+// Dipanggil lonceng Main Admin untuk menyetujui / menolak permintaan edit.
+window.decideItemEditRequest = async (requestId, decision) => {
+  const user = auth.currentUser;
+  if (!user || activeRole !== "main_admin") throw new Error("Hanya Main Admin.");
+  const ref = doc(db, "itemEditRequests", requestId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Permintaan tidak ditemukan.");
+  const request = snap.data();
+
+  if (decision === "Disetujui") {
+    await applyInventoryEdit(request.itemId, request.changes, {
+      requestId,
+      reason: request.reason,
+      requesterName: request.requesterName
+    });
+    await refresh();
+  } else {
+    await updateDoc(ref, {
+      status: "Ditolak",
+      decidedBy: user.uid,
+      decidedByName: activeProfile.name,
+      updatedAt: serverTimestamp()
+    });
+  }
+};
+
 function openInventoryForm() {
   if (!auth.currentUser || !canWrite()) {
     message("Akun ini tidak memiliki izin tambah barang.");
@@ -625,7 +885,7 @@ function openInventoryForm() {
           required
           maxlength="60"
           placeholder="ATK-001"
-          pattern="[A-Za-z0-9_-]{2,60}"
+          pattern="[A-Za-z0-9_\\-]{2,60}"
         >
       </div>
 
@@ -1162,13 +1422,14 @@ $("dataForm")?.addEventListener("submit", async event => {
 
   try {
     const data = Object.fromEntries(new FormData(form));
+    let editMessage = "";
 
     if (mode === "inventory") {
   Object.assign(data, await selectedPhotoData(form));
   await saveInventory(data);
 } else if (mode === "editInventory") {
   Object.assign(data, await selectedPhotoData(form));
-  await saveEditInventory(form.dataset.editItemId, data);
+  editMessage = await saveEditInventory(form.dataset.editItemId, data);
 } else {
   await saveStockTransaction(data);
 }
@@ -1186,7 +1447,7 @@ $("dataForm")?.addEventListener("submit", async event => {
      mode === "inventory"
   ? "Barang berhasil ditambahkan."
   : mode === "editInventory"
-    ? "Data barang berhasil diperbarui."
+    ? editMessage
     : "Transaksi berhasil disimpan."
     );
 
