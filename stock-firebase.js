@@ -170,6 +170,46 @@ if (heading) {
   }
   if (trxButton) trxButton.hidden = !ready || !canWrite();
 }
+function syncTopScrollbar(tableWrap, containerId) {
+  if (!tableWrap) return;
+  let topScrollbar = document.getElementById(containerId);
+  if (!topScrollbar) {
+    topScrollbar = document.createElement("div");
+    topScrollbar.id = containerId;
+    topScrollbar.className = "top-scrollbar-container";
+    topScrollbar.style.cssText = "overflow-x:auto;overflow-y:hidden;height:12px;margin-bottom:4px;";
+    const dummy = document.createElement("div");
+    dummy.style.height = "1px";
+    topScrollbar.appendChild(dummy);
+    tableWrap.parentNode.insertBefore(topScrollbar, tableWrap);
+
+    let isSyncingTop = false;
+    let isSyncingWrap = false;
+
+    topScrollbar.addEventListener("scroll", () => {
+      if (!isSyncingTop) {
+        isSyncingWrap = true;
+        tableWrap.scrollLeft = topScrollbar.scrollLeft;
+      }
+      isSyncingTop = false;
+    });
+
+    tableWrap.addEventListener("scroll", () => {
+      if (!isSyncingWrap) {
+        isSyncingTop = true;
+        topScrollbar.scrollLeft = tableWrap.scrollLeft;
+      }
+      isSyncingWrap = false;
+    });
+  }
+
+  const table = tableWrap.querySelector("table");
+  if (table) {
+    const dummy = topScrollbar.firstElementChild;
+    if (dummy) dummy.style.width = table.scrollWidth + "px";
+  }
+}
+
 function ensureInventorySearch() {
   const table = $("firestoreInventoryTable");
   const article = table?.closest("article");
@@ -250,7 +290,8 @@ const filteredInventory = inventory.filter(item => {
   const inventoryTable = $("firestoreInventoryTable");
 
   if (inventoryTable) {
-   inventoryTable.innerHTML = filteredInventory.length
+    syncTopScrollbar(inventoryTable.closest(".table-wrap"), "topScrollbarInventory");
+    inventoryTable.innerHTML = filteredInventory.length
   ? filteredInventory.map(i => `
           <tr>
             <td>${i.photoData ? `<button type="button" class="inventory-photo-open" data-item-id="${html(i.id)}" aria-label="Lihat foto ${html(i.name)}"><img class="inventory-photo-thumb" src="${html(i.photoData)}" alt="Foto ${html(i.name)}"></button>` : "—"}</td>
@@ -675,10 +716,19 @@ function openEditInventoryForm(itemId) {
           value="${html(item.specification || "")}">
       </div>
 
-      ${photoField(item.photoData || "")}
-      <div class="field full">
-        <p>Kode barang dan stok tidak dapat diedit langsung.</p>
+      <div class="field">
+        <label>Stok Saat Ini</label>
+        <input value="${html(item.stock)} ${html(item.unit)}" disabled>
       </div>
+
+      <div class="field">
+        <label>Stok Aktual (Koreksi Fisik)</label>
+        <input name="actualStock" type="number" min="0" step="1"
+          placeholder="Isi jika ada koreksi stok"
+          value="${html(item.stock)}">
+      </div>
+
+      ${photoField(item.photoData || "")}
     `,
     "editInventory"
   );
@@ -721,14 +771,66 @@ async function saveEditInventory(itemId, data) {
   }
 
   const itemRef = doc(db, "inventory", itemId);
+  const { user, profile } = await getAuthorizedProfile();
 
-  await runTransaction(db, async tx => {
-    const snapshot = await tx.get(itemRef);
+  const itemSnap = await getDoc(itemRef);
+  if (!itemSnap.exists()) throw new Error("Barang tidak ditemukan.");
+  const item = itemSnap.data();
 
-    if (!snapshot.exists()) {
-      throw new Error("Barang tidak ditemukan.");
+  let stockCorrectionSubmitted = false;
+
+  if (data.actualStock !== undefined && data.actualStock !== "") {
+    const actual = Number(data.actualStock);
+    if (!/^\d+$/.test(String(data.actualStock).trim()) || !Number.isSafeInteger(actual)) {
+      throw new Error("Stok Aktual (Koreksi) harus berupa bilangan bulat 0 atau lebih.");
     }
 
+    if (actual !== item.stock) {
+      if (profile.role === "main_admin") {
+        const diff = actual - item.stock;
+        const type = diff >= 0 ? "Masuk" : "Keluar";
+        const qty = Math.abs(diff);
+        const trxRef = doc(collection(db, "transactions"));
+
+        await runTransaction(db, async tx => {
+          tx.update(itemRef, {
+            name, category, unit, location: storageLocation, minimum, specification,
+            stock: actual, lastTransactionId: trxRef.id, lastStockBefore: item.stock,
+            ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
+          });
+
+          tx.set(trxRef, {
+            itemId: itemId, code: item.code, name: name, type: type, quantity: qty,
+            stockBefore: item.stock, stockAfter: actual, date: localDate(),
+            note: "Penyesuaian Stok Langsung oleh Main Admin",
+            createdBy: user.uid, createdByName: profile.name, createdByRole: profile.role,
+            createdAt: serverTimestamp(), testOnly: false
+          });
+        });
+        return;
+      } else {
+        const corrRef = doc(collection(db, "inventoryCorrections"));
+        await setDoc(corrRef, {
+          itemId: itemId,
+          code: item.code,
+          name: name,
+          unit: unit,
+          currentStock: item.stock,
+          proposedStock: actual,
+          requesterUid: user.uid,
+          requesterName: profile.name,
+          requesterRole: profile.role,
+          status: "Menunggu Approval",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          ...(data.photoData ? { photoData: data.photoData } : {})
+        });
+        stockCorrectionSubmitted = true;
+      }
+    }
+  }
+
+  await runTransaction(db, async tx => {
     tx.update(itemRef, {
       name,
       category,
@@ -739,6 +841,10 @@ async function saveEditInventory(itemId, data) {
       ...(data.photoData !== undefined ? { photoData: data.photoData } : {})
     });
   });
+
+  if (stockCorrectionSubmitted) {
+    message("Pengajuan koreksi stok dikirimkan untuk persetujuan Main Admin.");
+  }
 }
 function openInventoryForm() {
   if (!auth.currentUser || !canWrite()) {

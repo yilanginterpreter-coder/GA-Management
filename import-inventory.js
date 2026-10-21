@@ -407,6 +407,52 @@ function ensureButton() {
   }
 
   button.hidden = !canImport();
+
+  let exportBtn = $("exportInventoryBtn");
+  if (!exportBtn) {
+    exportBtn = document.createElement("button");
+    exportBtn.id = "exportInventoryBtn";
+    exportBtn.type = "button";
+    exportBtn.className = "secondary-button";
+    exportBtn.innerHTML = '<i class="fa-solid fa-file-export"></i> Export Excel';
+    exportBtn.style.marginLeft = "8px";
+    exportBtn.addEventListener("click", exportInventoryExcel);
+
+    const heading = page.querySelector(".page-heading");
+    if (heading) heading.appendChild(exportBtn);
+    else page.prepend(exportBtn);
+  }
+
+  exportBtn.hidden = !canImport();
+}
+
+async function exportInventoryExcel() {
+  try {
+    const XLSX = await loadXLSX();
+    const snapshot = await getDocs(collection(db, "inventory"));
+    const items = snapshot.docs.map(d => d.data());
+    if (!items.length) return message("Tidak ada data inventory untuk diexport.");
+
+    const data = items.map(i => ({
+      "Kode Barang": i.code || "",
+      "Nama Barang": i.name || "",
+      "Spesifikasi": i.specification || "",
+      "Kategori": i.category || "",
+      "Satuan": i.unit || "",
+      "Lokasi": i.location || "",
+      "Stok Minimum": i.minimum ?? 0,
+      "Stok Saat Ini": i.stock ?? 0
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    XLSX.writeFile(wb, `inventory-${localDate()}.xlsx`);
+    message("Inventory berhasil diexport ke Excel.");
+  } catch (err) {
+    console.error(err);
+    message("Gagal export inventory ke Excel.");
+  }
 }
 
 function closeImport() {

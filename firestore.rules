@@ -990,11 +990,56 @@ service cloud.firestore {
       allow create, update, delete: if hasPerm("meals");
     }
 
+    function validCorrectionCreate() {
+      let d = request.resource.data;
+
+      return canTransact()
+        && hasPerm("inventory")
+        && d.keys().hasAll([
+          "itemId", "code", "name", "unit", "currentStock", "proposedStock",
+          "requesterUid", "requesterName", "requesterRole", "status", "createdAt", "updatedAt"
+        ])
+        && d.keys().hasOnly([
+          "itemId", "code", "name", "unit", "currentStock", "proposedStock",
+          "requesterUid", "requesterName", "requesterRole", "status", "createdAt", "updatedAt", "photoData"
+        ])
+        && d.itemId is string
+        && d.itemId.size() > 0
+        && d.code is string
+        && d.name is string
+        && d.unit is string
+        && validStock(d.currentStock)
+        && validStock(d.proposedStock)
+        && d.requesterUid == request.auth.uid
+        && d.requesterName == get(userPath()).data.name
+        && d.requesterRole == get(userPath()).data.role
+        && d.status == "Menunggu Approval"
+        && d.createdAt == request.time
+        && d.updatedAt == request.time
+        && validPhoto(d);
+    }
+
+    function validCorrectionDecision() {
+      let before = resource.data;
+      let after = request.resource.data;
+
+      return isMain()
+        && before.status == "Menunggu Approval"
+        && after.status in ["Disetujui", "Ditolak"]
+        && after.diff(before).affectedKeys().hasOnly([
+          "status", "decidedBy", "decidedByName", "decidedAt", "updatedAt"
+        ])
+        && after.decidedBy == request.auth.uid
+        && after.decidedByName == get(userPath()).data.name
+        && after.decidedAt == request.time
+        && after.updatedAt == request.time;
+    }
+
     match /inventoryCorrections/{correctionId} {
       allow get, list: if canRead();
-      allow create: if canTransact() && hasPerm("inventory");
-      allow update: if isMain();
-      allow delete: if isMain();
+      allow create: if validCorrectionCreate();
+      allow update: if validCorrectionDecision();
+      allow delete: if false;
     }
 
     match /employeeMaster/{employeeId} {

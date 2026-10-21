@@ -215,7 +215,17 @@ function openForm(employee = null) {
             updatedAt: serverTimestamp()
           };
 
-          const docId = isEdit ? e.id : nik.replace(/[^A-Za-z0-9_-]/g, "");
+          const normalizedId = nik.replace(/[^A-Za-z0-9_-]/g, "");
+          if (!normalizedId) throw new Error("NIK tidak valid untuk ID dokumen.");
+
+          if (payload.linkedUid) {
+            const conflicting = employees.find(x => x.linkedUid === payload.linkedUid && x.id !== (isEdit ? e.id : normalizedId));
+            if (conflicting) {
+              throw new Error(`Akun user tersebut sudah ditaudkan ke karyawan lain (${conflicting.name} - ${conflicting.nik}).`);
+            }
+          }
+
+          const docId = isEdit ? e.id : normalizedId;
           const docRef = doc(db, "employeeMaster", docId);
 
           if (!isEdit) {
@@ -239,7 +249,8 @@ function openForm(employee = null) {
                 nik: payload.nik
               });
             } catch (err) {
-              console.warn("Gagal update user document:", err);
+              console.error("Gagal memperbarui profil akun user:", err);
+              throw new Error("Data karyawan tersimpan, namun gagal memperbarui profil user linked: " + err.message);
             }
           }
 
@@ -299,26 +310,33 @@ $("empImportExcelBtn")?.addEventListener("click", () => {
       const wb = XLSX.read(buffer, { type: "array" });
       const sheetName = wb.SheetNames[0];
       const sheet = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet);
+      const rawRows = XLSX.utils.sheet_to_json(sheet);
 
-      if (!rows.length) return toast("File Excel kosong atau format tidak sesuai.");
+      if (!rawRows.length) return toast("File Excel kosong atau format tidak sesuai.");
 
-      let successCount = 0;
-      let skipCount = 0;
+      const parsedRecords = [];
+      let invalidCount = 0;
 
-      for (const row of rows) {
+      for (const row of rawRows) {
         const nik = String(row["NIK"] || row["Nik"] || row["NIK/Employee ID"] || "").trim();
         const name = String(row["Nama"] || row["Nama Lengkap"] || row["Name"] || "").trim();
 
         if (!nik || !name) {
-          skipCount++;
+          invalidCount++;
           continue;
         }
 
         const docId = nik.replace(/[^A-Za-z0-9_-]/g, "");
-        const docRef = doc(db, "employeeMaster", docId);
+        if (!docId) {
+          invalidCount++;
+          continue;
+        }
 
-        const payload = {
+        const isDuplicate = employees.some(emp => emp.id === docId || emp.nik === nik);
+
+        parsedRecords.push({
+          docId,
+          isDuplicate,
           nik,
           name,
           idCardNo: String(row["No ID Card"] || row["ID Card"] || "").trim(),
@@ -331,26 +349,126 @@ $("empImportExcelBtn")?.addEventListener("click", () => {
           email: String(row["Email"] || "").trim(),
           employmentStatus: String(row["Status Kepegawaian"] || "Tetap").trim(),
           activeStatus: String(row["Status Aktif"] || "Aktif").trim(),
-          jobDescription: String(row["Uraian Tugas"] || row["Job Description"] || "").trim(),
-          updatedAt: serverTimestamp()
-        };
-
-        const existingSnap = await getDoc(docRef);
-        if (!existingSnap.exists()) {
-          payload.createdAt = serverTimestamp();
-          await setDoc(docRef, payload);
-          successCount++;
-        } else {
-          await updateDoc(docRef, payload);
-          successCount++;
-        }
+          jobDescription: String(row["Uraian Tugas"] || row["Job Description"] || "").trim()
+        });
       }
 
-      toast(`Import selesai: ${successCount} data berhasil diproses, ${skipCount} dilewati.`);
-      await loadData();
+      if (!parsedRecords.length) {
+        return toast("Tidak ada data valid yang dapat diimpor (NIK & Nama wajib diisi).");
+      }
+
+      const dupCount = parsedRecords.filter(r => r.isDuplicate).length;
+      const newCount = parsedRecords.length - dupCount;
+
+      const previewRowsHTML = parsedRecords.slice(0, 50).map(r => `
+        <tr>
+          <td><span class="status-badge ${r.isDuplicate ? "warning" : ""}">${r.isDuplicate ? "Duplikat" : "Baru"}</span></td>
+          <td>${esc(r.nik)}</td>
+          <td><strong>${esc(r.name)}</strong></td>
+          <td>${esc(r.department || "-")}</td>
+          <td>${esc(r.position || "-")}</td>
+        </tr>
+      `).join("");
+
+      const bodyHTML = `
+        <div style="margin-bottom:12px;">
+          <p>Total dibaca: <strong>${parsedRecords.length}</strong> record valid (${newCount} baru, ${dupCount} duplikat NIK). ${invalidCount ? `<small style="color:var(--text-secondary);">(${invalidCount} baris tidak lengkap/dilewati)</small>` : ""}</p>
+          <div class="field" style="margin-top:10px;">
+            <label>Penanganan Data Duplikat / NIK Sama:</label>
+            <select id="empImportStrategy">
+              <option value="skip">Lewati Duplikat (Hanya Tambah Data Baru)</option>
+              <option value="update">Perbarui Data Lama dengan Isi Excel</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height:250px; overflow-y:auto;">
+          <table class="data-table">
+            <thead>
+              <tr><th>Status</th><th>NIK</th><th>Nama</th><th>Departemen</th><th>Jabatan</th></tr>
+            </thead>
+            <tbody>${previewRowsHTML}</tbody>
+          </table>
+        </div>
+        ${parsedRecords.length > 50 ? `<p><small>* Menampilkan 50 dari ${parsedRecords.length} data.</small></p>` : ""}
+      `;
+
+      openModal(
+        "Pratinjau & Konfirmasi Import Excel",
+        bodyHTML,
+        [
+          { label: "Batal" },
+          {
+            label: `Impor ${parsedRecords.length} Record`,
+            cls: "primary-button",
+            onClick: async () => {
+              const strategy = $("empImportStrategy")?.value || "skip";
+              let importedCount = 0;
+              let updatedCount = 0;
+              let skippedCount = invalidCount;
+              let failedCount = 0;
+
+              for (const record of parsedRecords) {
+                try {
+                  const docRef = doc(db, "employeeMaster", record.docId);
+                  const payload = {
+                    nik: record.nik,
+                    name: record.name,
+                    idCardNo: record.idCardNo,
+                    blockNo: record.blockNo,
+                    workLocation: record.workLocation,
+                    department: record.department,
+                    position: record.position,
+                    team: record.team,
+                    supervisor: record.supervisor,
+                    email: record.email,
+                    employmentStatus: record.employmentStatus,
+                    activeStatus: record.activeStatus,
+                    jobDescription: record.jobDescription,
+                    updatedAt: serverTimestamp()
+                  };
+
+                  if (record.isDuplicate) {
+                    if (strategy === "skip") {
+                      skippedCount++;
+                    } else {
+                      await updateDoc(docRef, payload);
+                      updatedCount++;
+                    }
+                  } else {
+                    payload.createdAt = serverTimestamp();
+                    await setDoc(docRef, payload);
+                    importedCount++;
+                  }
+                } catch (err) {
+                  console.error(`Gagal memproses NIK ${record.nik}:`, err);
+                  failedCount++;
+                }
+              }
+
+              openModal(
+                "Laporan Hasil Import Excel",
+                `
+                  <div style="line-height:1.6;">
+                    <p><strong>Proses Import Selesai:</strong></p>
+                    <ul>
+                      <li>Baru Diimpor: <strong>${importedCount}</strong> record</li>
+                      <li>Data Diperbarui: <strong>${updatedCount}</strong> record</li>
+                      <li>Dilewati: <strong>${skippedCount}</strong> record</li>
+                      <li>Gagal: <strong>${failedCount}</strong> record</li>
+                    </ul>
+                  </div>
+                `,
+                [{ label: "Tutup", cls: "primary-button" }]
+              );
+
+              await loadData();
+            }
+          }
+        ]
+      );
     } catch (err) {
       console.error(err);
-      toast("Gagal mengimpor file Excel: " + (err.message || "format salah"));
+      toast("Gagal membaca file Excel: " + (err.message || "format salah"));
     }
   };
   fileInput.click();
