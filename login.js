@@ -225,7 +225,15 @@ function showMessage(message, type = "error") {
   }
 }
 
+let authCbStarted = false;
+function markReady() {
+  if (!authCbStarted || window.__gaAuthReady) return;
+  window.__gaAuthReady = true;
+  document.dispatchEvent(new Event("ga:auth-ready"));
+}
+
 function showLogin(message = "", type = "error") {
+  setTimeout(markReady, 0);
   if (loginScreen) loginScreen.hidden = false;
   if (appContent) appContent.hidden = true;
   showMessage(message, type);
@@ -276,6 +284,7 @@ function showProfile(name, role) {
 }
 
 function showApp(role, name, email) {
+  setTimeout(markReady, 0);
   if (email) writeLast({ email, name: name || "" });
   setResume(false);
   if (loginScreen) loginScreen.hidden = true;
@@ -385,6 +394,7 @@ await authPersistenceReady;
 showLogin();
 
 onAuthStateChanged(auth, async (user) => {
+  authCbStarted = true;
   if (!user) {
     pendingResume = null;
     setResume(false);
@@ -405,18 +415,17 @@ onAuthStateChanged(auth, async (user) => {
 
     const userData = await checkUserRole(user);
 
-    if (hasEntered()) {
-      showApp(userData.role, userData.name, user.email);
-    } else {
-      // Sesi tersimpan: cukup tekan Masuk, tanpa mengetik email dan password.
-      pendingResume = { role: userData.role, name: userData.name, email: user.email };
-      setResume(true, pendingResume);
-      showLogin();
-    }
+    // Sudah pernah login: langsung buka panel tanpa mengisi email/password lagi.
+    showApp(userData.role, userData.name, user.email);
+    setEntered(true);
 // Data Inventory & Transaksi dimuat oleh stock-firebase.js.
 
   } catch (error) {
     console.error("Pemeriksaan akses gagal:", error.code || error.message);
+    if (["auth/network-request-failed", "unavailable", "failed-precondition"].includes(error.code)) {
+      showLogin("Tidak ada koneksi internet. Sambungkan lalu muat ulang aplikasi.");
+      return;
+    }
     await signOut(auth);
     showLogin("Akun belum memiliki akses yang valid.");
   }
