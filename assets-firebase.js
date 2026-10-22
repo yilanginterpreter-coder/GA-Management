@@ -27,9 +27,7 @@ let saving = false;
 const assetFields = [
   ["code", "Kode Aset", "text", "Contoh: AST-001", true],
   ["name", "Nama Aset", "text", "Nama aset", true],
-  ["category", "Kategori", "select",
-    ["Laptop", "Komputer", "AC", "Meja & Kursi",
-     "Printer", "Kendaraan", "Peralatan", "Lainnya"], true],
+  ["category", "Kategori", "text", "Isi manual, contoh: Laptop, AC, Printer", true],
   ["location", "Lokasi", "text", "Lokasi aset", true],
   ["owner", "Penanggung Jawab", "text", "Nama karyawan", false],
   ["condition", "Kondisi", "select",
@@ -94,6 +92,7 @@ function fieldHTML(field, record = {}) {
       <input
         type="${type}"
         name="${key}"
+        ${key === "category" ? 'maxlength="40"' : ""}
         value="${escapeHTML(value)}"
         placeholder="${escapeHTML(options)}"
         ${type === "number" ? 'min="0" step="any"' : ""}
