@@ -1481,6 +1481,7 @@ const importModuleLoaded = import("./import-inventory.js").then(
 );
 
 // Dipakai modul import Excel untuk memuat ulang daftar barang.
+window.applyInventoryEdit = applyInventoryEdit;
 window.refreshFirestoreInventory = () =>
   refresh().catch(error => console.error("Gagal memuat ulang stok:", error));
 
