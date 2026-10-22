@@ -4,12 +4,44 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GA Management System</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#477B79">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GA Mgmt">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 </head>
-<body>  
+<body>
+<div id="splash" aria-hidden="true">
+  <div class="splash-logo"><svg viewBox="0 0 512 512" width="120" height="120"><rect width="512" height="512" rx="96" fill="#477B79"/><rect x="96" y="96" width="320" height="320" rx="93" fill="none" stroke="#fff" stroke-width="16"/><path transform="translate(256 256) scale(.44) translate(-256 -272)" d="M272 96c-78.6 0-145.1 51.5-167.7 122.5c33.6-17 71.5-26.5 111.7-26.5l88 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-16 0-72 0s0 0 0 0c-16.6 0-32.7 1.9-48.3 5.4c-25.9 5.9-49.9 16.4-71.4 30.7c0 0 0 0 0 0C38.3 298.8 0 364.9 0 440l0 16c0 13.3 10.7 24 24 24s24-10.7 24-24l0-16c0-48.7 20.7-92.5 53.8-123.2C121.6 392.3 190.3 448 272 448l1 0c132.1-.7 239-130.9 239-291.4c0-42.6-7.5-83.1-21.1-119.6c-2.6-6.9-12.7-6.6-16.2-.1C455.9 72.1 418.7 96 376 96L272 96z" fill="#fff"/></svg></div>
+  <div class="splash-title">GA Management</div>
+  <div class="splash-sub">后勤管理 · General Affairs</div>
+</div>
+<style>
+#splash{position:fixed;inset:0;z-index:100000;background:#477B79;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;transition:opacity .45s ease}
+#splash.hide{opacity:0;pointer-events:none}
+#splash .splash-logo{width:120px;height:120px;border-radius:30px;box-shadow:0 0 0 3px rgba(255,255,255,.9);animation:splashPop .7s ease both}
+#splash .splash-logo svg{display:block;border-radius:30px}
+#splash .splash-title{font-size:30px;font-weight:800;letter-spacing:.2px;margin-top:14px;animation:splashUp .7s .15s ease both}
+#splash .splash-sub{font-size:14px;opacity:.85;animation:splashUp .7s .3s ease both}
+@keyframes splashPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes splashUp{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+</style>
+<script>
+(function(){var t0=Date.now(),el=document.getElementById("splash"),done=false;
+function hide(){if(done)return;done=true;el.classList.add("hide");setTimeout(function(){el.remove();},600);}
+function check(){var wait=3000-(Date.now()-t0);setTimeout(hide,Math.max(0,wait));}
+var ready=false;function go(){if(ready)return;ready=true;check();}
+if(window.__gaAuthReady)go();else document.addEventListener("ga:auth-ready",go);
+setTimeout(hide,8000);})();
+</script>
+  
 <div id="login-screen" class="login-container">
   <div class="login-card">
     <div class="login-brand-panel">
@@ -585,6 +617,10 @@ var d=document.createElement("div");
 d.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#B3261E;color:#fff;padding:10px 14px;font:14px/1.4 system-ui;text-align:center";
 d.textContent="Sebagian file belum termuat: "+bad.join(", ")+". Unggah semua file ke GitHub lalu tekan Ctrl+F5.";
 document.body.appendChild(d);},4000);});
+</script>
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}
+(function(){var ev=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();ev=e;var b=document.createElement("button");b.id="installAppBtn";b.type="button";b.textContent="Pasang Aplikasi";b.style.cssText="position:fixed;right:14px;bottom:14px;z-index:9998;background:#477B79;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:600 14px system-ui;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer";b.onclick=function(){b.remove();ev.prompt();ev=null;};document.body.appendChild(b);});window.addEventListener("appinstalled",function(){var b=document.getElementById("installAppBtn");if(b)b.remove();});})();
 </script>
 </body>
 </html>
