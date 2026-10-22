@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GA Management System</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#477B79">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GA Mgmt">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head>
+<body>
+<div id="splash" aria-hidden="true">
+  <div class="splash-logo"><svg viewBox="0 0 512 512" width="120" height="120"><rect width="512" height="512" rx="96" fill="#477B79"/><rect x="96" y="96" width="320" height="320" rx="93" fill="none" stroke="#fff" stroke-width="16"/><path transform="translate(256 256) scale(.44) translate(-256 -272)" d="M272 96c-78.6 0-145.1 51.5-167.7 122.5c33.6-17 71.5-26.5 111.7-26.5l88 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-16 0-72 0s0 0 0 0c-16.6 0-32.7 1.9-48.3 5.4c-25.9 5.9-49.9 16.4-71.4 30.7c0 0 0 0 0 0C38.3 298.8 0 364.9 0 440l0 16c0 13.3 10.7 24 24 24s24-10.7 24-24l0-16c0-48.7 20.7-92.5 53.8-123.2C121.6 392.3 190.3 448 272 448l1 0c132.1-.7 239-130.9 239-291.4c0-42.6-7.5-83.1-21.1-119.6c-2.6-6.9-12.7-6.6-16.2-.1C455.9 72.1 418.7 96 376 96L272 96z" fill="#fff"/></svg></div>
+  <div class="splash-title">GA Management</div>
+  <div class="splash-sub">后勤管理 · General Affairs</div>
+</div>
+<style>
+#splash{position:fixed;inset:0;z-index:100000;background:#477B79;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;transition:opacity .45s ease}
+#splash.hide{opacity:0;pointer-events:none}
+#splash .splash-logo{width:120px;height:120px;border-radius:30px;box-shadow:0 0 0 3px rgba(255,255,255,.9);animation:splashPop .7s ease both}
+#splash .splash-logo svg{display:block;border-radius:30px}
+#splash .splash-title{font-size:30px;font-weight:800;letter-spacing:.2px;margin-top:14px;animation:splashUp .7s .15s ease both}
+#splash .splash-sub{font-size:14px;opacity:.85;animation:splashUp .7s .3s ease both}
+@keyframes splashPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes splashUp{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+</style>
+<script>
+(function(){var t0=Date.now(),el=document.getElementById("splash"),done=false;
+function hide(){if(done)return;done=true;el.classList.add("hide");setTimeout(function(){el.remove();},600);}
+function check(){var wait=3000-(Date.now()-t0);setTimeout(hide,Math.max(0,wait));}
+var ready=false;function go(){if(ready)return;ready=true;check();}
+if(window.__gaAuthReady)go();else document.addEventListener("ga:auth-ready",go);
+setTimeout(hide,8000);})();
+</script>
+  
+<div id="login-screen" class="login-container">
+  <div class="login-card">
+    <div class="login-brand-panel">
+      <div class="login-brand-header">
+        <div class="login-brand-icon">
+          <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div class="login-brand-title">
+          <h2>GA Management</h2>
+          <p>后勤管理 · General Affairs</p>
+        </div>
+      </div>
+      <div class="login-brand-content">
+        <h3>Sistem Pengelolaan Operasional GA</h3>
+        <p>Solusi terpadu untuk pengelolaan inventory, aset, fasilitas perbaikan, dan layanan operasional perusahaan secara teratur, transparan, dan efisien.</p>
+      </div>
+      <div class="login-brand-footer">
+        <p>&copy; 2026 GA Management System</p>
+      </div>
+    </div>
+
+    <div class="login-form-panel">
+      <div class="login-header">
+        <h2>Selamat Datang</h2>
+        <p>Silakan masuk dengan akun Anda untuk melanjutkan.</p>
+      </div>
+
+      <form id="login-form" novalidate>
+        <div id="login-resume" class="login-resume" hidden>
+          <span class="login-resume-avatar" id="login-resume-avatar">A</span>
+          <div><strong id="login-resume-name">-</strong><small id="login-resume-email">-</small></div>
+        </div>
+        <div id="login-fields">
+        <div class="login-field">
+          <label for="login-email">Email</label>
+          <div class="login-input-wrap">
+            <i class="fa-regular fa-envelope login-input-icon"></i>
+            <input
+              id="login-email"
+              type="email"
+              autocomplete="username"
+              placeholder="nama@perusahaan.com"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="login-field">
+          <label for="login-password">Password</label>
+          <div class="login-input-wrap">
+            <i class="fa-solid fa-lock login-input-icon"></i>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Masukkan password Anda"
+              required
+            >
+            <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Tampilkan password" title="Tampilkan/Sembunyikan Password">
+              <i class="fa-regular fa-eye" id="toggle-password-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        </div>
+        <button type="submit" id="login-submit-btn" class="login-submit-btn">
+          <span class="btn-text">Masuk</span>
+          <i class="fa-solid fa-arrow-right btn-icon"></i>
+        </button>
+
+        <button type="button" id="login-switch" class="login-switch" hidden>Gunakan akun lain</button>
+        <div id="login-message" class="login-message" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app-content" hidden>
+  <header class="app-header">
+    <button type="button" class="brand-block" id="homeButton" aria-label="Kembali ke beranda">
+      <span class="brand-icon"><i class="fa-solid fa-leaf"></i></span>
+      <span class="brand-text"><strong>GA Management</strong><small>后勤管理 · General Affairs</small></span>
+    </button>
+    <div class="top-actions">
+      <div class="menu-anchor">
+        <button type="button" class="header-button" id="bellButton" aria-label="Notifikasi" aria-haspopup="true" aria-expanded="false"><i class="fa-regular fa-bell"></i><span class="bell-badge" id="bellBadge" hidden>0</span></button>
+        <div class="dropdown bell-panel" id="bellPanel" hidden></div>
+      </div>
+      <div class="menu-anchor">
+        <button type="button" class="top-avatar" id="avatarButton" aria-label="Menu profil" aria-haspopup="true" aria-expanded="false">GA</button>
+        <div class="dropdown profile-menu" id="profileMenu" hidden>
+          <div class="profile-head"><strong id="menuName">Pengguna</strong><small id="menuRole"></small></div>
+          <button type="button" class="menu-item" data-profile-action="settings"><i class="fa-solid fa-gear"></i> Pengaturan</button>
+          <button type="button" class="menu-item" data-profile-action="profile"><i class="fa-regular fa-user"></i> Profil</button>
+          <button type="button" class="menu-item" data-profile-action="users"><i class="fa-solid fa-users-gear"></i> Pengguna Akses</button>
+          <button type="button" class="menu-item" data-profile-action="reports"><i class="fa-solid fa-chart-pie"></i> Laporan</button>
+          <button type="button" class="menu-item danger" id="logout-button"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="main">
+    <div class="content">
+      <div class="page-back" id="pageBack" hidden><button type="button" id="backButton"><i class="fa-solid fa-arrow-left"></i> <span id="backLabel">Beranda</span></button></div>
+      <section class="page active" id="page-home">
+        <div id="employeeWelcomeWidget" hidden></div>
+        <h2 class="home-title" id="homeTitle">MENU</h2>
+        <div class="tile-grid" id="tileGrid"></div>
+        <p class="home-note"><i class="fa-solid fa-circle-info"></i> Pilih menu untuk membuka modul. Hak akses mengikuti akun.</p>
+        <footer class="admin-home-footer">
+          <div class="admin-footer-title">GA Management · 后勤管理 · General Affairs Management System</div>
+          <p class="admin-footer-quote">"Satu sistem untuk pengelolaan operasional yang lebih teratur, transparan, dan efisien."</p>
+          <p class="admin-footer-dev">Designed &amp; Developed by 亿朗</p>
+          <p class="admin-footer-copy">&copy; 2026 GA Management · Internal Management System</p>
+        </footer>
+      </section>
+      <section class="page" id="page-inventory-hub">
+        <h2 class="home-title">INVENTORY &amp; STOK <small>出入库 · Pilih layanan</small></h2>
+        <div class="tile-grid two" id="hubGrid"></div>
+      </section>
+      <section class="page" id="page-settings">
+        <div class="page-heading"><div><span class="eyebrow">SETTINGS</span><h1>Pengaturan</h1><p>Pengaturan operasional GA dan konfigurasi sistem.</p></div></div>
+
+        <article class="panel" id="handoverSettingsPanel" hidden>
+          <div class="panel-heading"><div><h3>Jadwal Penyerahan Barang</h3><p>Karyawan memilih salah satu jam di bawah saat mengajukan permintaan barang (maksimal 3 pilihan).</p></div><i class="fa-regular fa-clock"></i></div>
+          <div class="slot-settings">
+            <div class="slot-row"><span>Pilihan 1</span><input type="time" data-slot-start="0" aria-label="Pilihan 1 mulai"><span>s/d</span><input type="time" data-slot-end="0" aria-label="Pilihan 1 selesai"></div>
+            <div class="slot-row"><span>Pilihan 2</span><input type="time" data-slot-start="1" aria-label="Pilihan 2 mulai"><span>s/d</span><input type="time" data-slot-end="1" aria-label="Pilihan 1 selesai"></div>
+            <div class="slot-row"><span>Pilihan 3</span><input type="time" data-slot-start="2" aria-label="Pilihan 3 mulai"><span>s/d</span><input type="time" data-slot-end="2" aria-label="Pilihan 3 selesai"></div>
+          </div>
+          <button type="button" class="primary-button" id="saveSlotsButton"><i class="fa-solid fa-check"></i> Simpan Jadwal</button>
+        </article>
+
+        <article class="panel" id="quotesSettingsPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <h3>Kata Motivasi Harian</h3>
+              <p>Kelola kutipan motivasi harian yang rotasi otomatis di Halaman Utama Karyawan.</p>
+            </div>
+            <button type="button" class="secondary-button" id="addQuoteButton"><i class="fa-solid fa-plus"></i> Tambah Quote</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Quote</th><th>Penulis / Sumber</th><th>Status</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="quotesTable"><tr><td colspan="4" class="empty-cell">Memuat quote motivasi...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel" id="announcementsSettingsPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <h3>Pengumuman GA</h3>
+              <p>Buat dan publikasikan pengumuman untuk seluruh karyawan.</p>
+            </div>
+            <button type="button" class="secondary-button" id="addAnnouncementButton"><i class="fa-solid fa-plus"></i> Buat Pengumuman</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Judul Pengumuman</th><th>Kategori</th><th>Tanggal</th><th>Status</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="announcementsTable"><tr><td colspan="5" class="empty-cell">Memuat pengumuman...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel" id="poConfigSettingsPanel" hidden>
+          <div class="panel-heading"><div><h3>Format Penomoran PO & PR</h3><p>Atur penomoran otomatis untuk Requisisi Pembelian (PR) dan Purchase Order (PO).</p></div><i class="fa-solid fa-hashtag"></i></div>
+          <div class="form-fields">
+            <div class="field full"><label>Format Prefix PR</label><input id="prPrefixInput" placeholder="PR-GA-{YYYY}{MM}-" value="PR-GA-{YYYY}{MM}-"></div>
+            <div class="field full"><label>Format Prefix PO</label><input id="poPrefixInput" placeholder="PO-GA-{YYYY}{MM}-" value="PO-GA-{YYYY}{MM}-"></div>
+          </div>
+          <button type="button" class="primary-button" id="savePoConfigBtn"><i class="fa-solid fa-check"></i> Simpan Konfigurasi PO</button>
+        </article>
+
+        <article class="panel" id="vendorMappingPanel" hidden>
+          <div class="panel-heading"><div><h3>Pemetaan Akun Vendor</h3><p>Hubungkan akun login role 'vendor' dengan data Master Vendor.</p></div><i class="fa-solid fa-link"></i></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Nama User / Email</th><th>Vendor Terhubung</th><th>Status Mapping</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="vendorMappingTable"><tr><td colspan="4" class="empty-cell">Memuat data vendor mapping...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <p class="notice" id="settingsEmpty" hidden><i class="fa-solid fa-circle-info"></i> Belum ada pengaturan yang tersedia untuk akun Anda.</p>
+      </section>
+      <div id="legacyDashboard" hidden>
+        <span id="totalItems"></span><span id="totalAssets"></span><span id="lowStock"></span><span id="pendingRequests"></span><span id="todayDate"></span>
+        <div id="recentActivity"></div><table><tbody id="dashboardStock"></tbody></table>
+      </div>
+      <section class="page" id="page-inventory">
+        <div class="page-heading"><div><span class="eyebrow">INVENTORY CONTROL</span><h1>Inventory & Stok</h1><p>Kelola barang habis pakai serta transaksi barang masuk dan keluar.</p></div></div>
+        <div class="stats compact-stats"><article class="stat-card"><span>Jenis Barang</span><h2 id="inventoryCount">0</h2></article><article class="stat-card"><span>Total Unit Stok</span><h2 id="stockUnits">0</h2></article><article class="stat-card"><span>Stok Menipis</span><h2 id="inventoryLow">0</h2></article></div>
+        <article class="panel"><div class="toolbar"><input id="inventorySearch" placeholder="Cari nama atau kode barang..." oninput="renderAll()"><button class="secondary-button" onclick="openForm('transaction')"><i class="fa-solid fa-arrow-right-arrow-left"></i> Transaksi Stok</button></div><div class="table-wrap"><table><thead><tr><th>Kode</th><th>Nama Barang</th><th>Kategori</th><th>Stok</th><th>Minimum</th><th>Satuan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="inventoryTable"></tbody></table></div></article>
+        <article class="panel">
+  <div class="panel-heading">
+    <div>
+      <h3>Inventory Firebase (Percobaan)</h3>
+      <p>Data langsung dari Firestore hanya untuk dilihat, belum bisa diedit.</p>
+    </div>
+  </div>
+      <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Foto</th>
+        <th>Kode</th>
+        <th>Nama Barang</th>
+        <th>Spesifikasi</th>
+        <th>Kategori</th>
+        <th>Stok</th>
+        <th>Minimum</th>
+        <th>Satuan</th>
+        <th>Lokasi</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="firestoreInventoryTable"></tbody>
+  </table>
+</div>    
+</article>
+        <article class="panel"><div class="panel-heading"><div><h3>Riwayat Transaksi</h3><p>Catatan barang masuk dan keluar</p></div></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kode Barang</th><th>Nama Barang</th><th>Jenis</th><th>Jumlah</th><th>Catatan</th></tr></thead><tbody id="transactionTable"></tbody></table></div></article>
+        <article class="panel" id="firebaseTransactionPanel">
+          <div class="panel-heading"><div><h3>Riwayat Transaksi Stok</h3><p>Transaksi Firestore dengan audit pengguna dan perubahan stok.</p></div></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Tanggal</th><th>Kode Barang</th><th>Nama Barang</th><th>Jenis</th><th>Jumlah</th><th>Stok Sebelum</th><th>Stok Sesudah</th><th>Catatan</th><th>Dicatat Oleh</th></tr></thead>
+            <tbody id="firestoreTransactionTable"><tr><td colspan="9" class="empty-cell">Memuat transaksi...</td></tr></tbody>
+          </table></div>
+        </article>
+      </section>
+      <section class="page" id="page-assets">
+        <div class="page-heading"><div><span class="eyebrow">FIXED ASSET MANAGEMENT</span><h1>Aset Perusahaan</h1><p>Catat identitas, lokasi, kondisi, dan penanggung jawab aset.</p></div><button class="primary-button" id="addAssetButton"><i class="fa-solid fa-plus"></i> Tambah Aset</button></div>
+        <article class="panel"><div class="toolbar"><input id="assetSearch" placeholder="Cari kode, nama, atau lokasi..."></div><div class="table-wrap"><table><thead><tr><th>Kode Aset</th><th>Nama Aset</th><th>Kategori</th><th>Lokasi</th><th>Penanggung Jawab</th><th>Kondisi</th><th>Aksi</th></tr></thead><tbody id="assetTable"></tbody></table></div></article>
+      </section>
+      <section class="page" id="page-vehicles">
+        <div class="page-heading"><div><span class="eyebrow">FLEET MANAGEMENT</span><h1>Kendaraan</h1><p>Kelola kendaraan operasional dan status pemakaiannya.</p></div><button class="primary-button" onclick="openForm('vehicles')"><i class="fa-solid fa-plus"></i> Tambah Kendaraan</button></div>
+        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nomor Polisi</th><th>Jenis Kendaraan</th><th>Merek/Model</th><th>Lokasi</th><th>Pengguna</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleTable"></tbody></table></div></article>
+      </section>
+      <section class="page" id="page-vehicle-hub">
+        <h2 class="home-title">KENDARAAN <small>车辆 · Pilih layanan</small></h2>
+        <div class="tile-grid two" id="vehicleHubGrid"></div>
+      </section>
+      <section class="page" id="page-vehicle-requests">
+        <div class="page-heading"><div><span class="eyebrow">VEHICLE REQUEST</span><h1>Permintaan Kendaraan</h1><p id="vehicleSubtitle">Ajukan kendaraan untuk keperluan operasional dan pantau statusnya.</p></div><button class="primary-button" id="newVehicleRequestButton"><i class="fa-solid fa-plus"></i> Ajukan Kendaraan</button></div>
+        <article class="panel"><div class="toolbar"><input id="vehicleSearch" type="search" placeholder="Cari tiket, tujuan, atau kendaraan..." aria-label="Cari permintaan" autocomplete="off"><select id="vehicleFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Pemohon</th><th>Tujuan</th><th>Jadwal</th><th>Penumpang</th><th>Kendaraan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vehicleRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
+      </section>
+      <section class="page" id="page-repairs">
+        <div class="page-heading"><div><span class="eyebrow">FACILITY MAINTENANCE</span><h1>Fasilitas & Perbaikan</h1><p id="repairSubtitle">Laporkan kerusakan fasilitas dan pantau prosesnya sampai selesai.</p></div><button class="primary-button" id="newRepairButton"><i class="fa-solid fa-plus"></i> Lapor Kerusakan</button></div>
+        <article class="panel"><div class="toolbar"><input id="repairSearch" type="search" placeholder="Cari tiket, lokasi, atau masalah..." aria-label="Cari laporan" autocomplete="off"><select id="repairFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pelapor</th><th>Kategori / Lokasi</th><th>Masalah</th><th>Urgensi</th><th>Pelaksana</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="repairTable"><tr><td colspan="9" class="empty-cell">Memuat laporan...</td></tr></tbody></table></div></article>
+      </section>
+      <section class="page" id="page-requests">
+        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE SERVICES</span><h1>Permintaan Barang</h1><p id="requestSubtitle">Cari barang di katalog, pilih jam penyerahan, dan pantau statusnya.</p></div></div>
+        <div class="request-tabs"><button type="button" class="primary-button" id="tabCatalog"><i class="fa-solid fa-store"></i> Katalog Barang</button><button type="button" class="secondary-button" id="tabRequests"><i class="fa-solid fa-clipboard-list"></i> Status Permintaan</button></div>
+        <div id="catalogView">
+          <article class="panel"><div class="toolbar"><input id="catalogSearch" type="search" placeholder="Cari nama, kode, atau kategori barang..." aria-label="Cari barang" autocomplete="off"><span id="catalogCount" class="catalog-count"></span></div><div id="catalogGrid" class="catalog-grid"><p class="catalog-empty">Memuat katalog...</p></div></article>
+        </div>
+        <div id="requestsView" hidden>
+          <article class="panel"><div class="toolbar"><select id="requestFilter" aria-label="Filter status" style="max-width:220px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Diserahkan</option><option>Ditolak</option><option>Dibatalkan</option></select></div><div class="table-wrap"><table><thead><tr><th>Tiket</th><th>Tanggal</th><th>Pemohon</th><th>Barang</th><th>Jumlah</th><th>Jadwal Penyerahan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="firebaseRequestTable"><tr><td colspan="8" class="empty-cell">Memuat permintaan...</td></tr></tbody></table></div></article>
+        </div>
+      </section>
+      <section class="page" id="page-procurement">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">PROCUREMENT & ARCHIVE</span>
+            <h1>Pengadaan &amp; Arsip PO</h1>
+            <p>Kelola Requisisi Pembelian (PR), Official Purchase Order (PO), Penerimaan Barang, dan Arsip Dokumen.</p>
+          </div>
+          <button type="button" class="primary-button" id="createPoButton"><i class="fa-solid fa-file-signature"></i> Buat PO Official</button>
+        </div>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Daftar Requisisi Pembelian (PR) Karyawan</h3>
+              <p>Requisisi yang disetujui dapat diterbitkan menjadi Purchase Order resmi.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>No. PR</th><th>Tanggal</th><th>Pemohon / Dept</th><th>Barang</th><th>Tgl Dibutuhkan</th><th>Status PR</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="prTable"><tr><td colspan="7" class="empty-cell">Memuat requisisi pembelian...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Official Purchase Orders (PO)</h3>
+              <p>Daftar PO terbit, status vendor, dan progres pengiriman.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>No. PO</th><th>Tgl PO</th><th>Vendor</th><th>Ref PR</th><th>Perkiraan Tgl Tiba</th><th>Status PO</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="poTable"><tr><td colspan="7" class="empty-cell">Memuat PO...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Arsip Dokumen Procurement (Surat Jalan &amp; Invoice)</h3>
+              <p>Arsip Surat Jalan (Delivery Note) dan Invoice untuk pencatatan non-pembayaran (Archive Only).</p>
+            </div>
+            <button type="button" class="secondary-button" id="uploadArchiveDocBtn"><i class="fa-solid fa-file-arrow-up"></i> Arsipkan Dokumen Baru</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Jenis Dokumen</th><th>No. Dokumen</th><th>Ref PO</th><th>Vendor</th><th>Tanggal</th><th>Nominal (Opsional)</th><th>Status Dokumen</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="archiveDocsTable"><tr><td colspan="8" class="empty-cell">Memuat arsip dokumen...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="page" id="page-canteen">
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDERS</span><h1>Pesan Makan Siang &amp; Malam</h1><p>Menu, persetujuan pesanan, rekap untuk vendor, serta jam dan shift.</p></div></div>
+        <div class="chip-bar" id="mealAdminTabs">
+          <button type="button" class="chip active" data-meal-tab="orders">Pesanan</button>
+          <button type="button" class="chip" data-meal-tab="recap">Rekap Vendor</button>
+          <button type="button" class="chip" data-meal-tab="menu">Menu</button>
+          <button type="button" class="chip" data-meal-tab="settings">Jam &amp; Shift</button>
+        </div>
+
+        <div id="mealTab-orders">
+          <article class="panel">
+            <div class="toolbar">
+              <input type="date" id="moDate" aria-label="Tanggal makan">
+              <select id="moMeal" aria-label="Jenis makan" style="max-width:170px"><option value="">Siang &amp; Malam</option><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select>
+              <select id="moStatus" aria-label="Status" style="max-width:170px"><option value="">Semua status</option><option>Menunggu</option><option>Disetujui</option><option>Ditolak</option><option>Dibatalkan</option></select>
+              <button type="button" class="primary-button" id="moApproveAll" hidden><i class="fa-solid fa-check-double"></i> Setujui Semua Menunggu</button>
+            </div>
+            <div id="moSummary" class="meal-summary"></div>
+            <div class="table-wrap"><table><thead><tr><th>Nama</th><th>No ID Card</th><th>No Blok</th><th>Lokasi Kerja</th><th>Makan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="moTable"><tr><td colspan="7" class="empty-cell">Memuat pesanan...</td></tr></tbody></table></div>
+          </article>
+        </div>
+
+        <div id="mealTab-recap" hidden>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Rekap untuk Vendor</h3><p>Hanya pesanan yang sudah disetujui yang dihitung.</p></div></div>
+            <div class="toolbar">
+              <input type="date" id="mrDate" aria-label="Tanggal makan">
+              <select id="mrMeal" aria-label="Jenis makan" style="max-width:170px"><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select>
+              <button type="button" class="secondary-button" id="mrCopy"><i class="fa-regular fa-copy"></i> Salin Ringkasan</button>
+              <button type="button" class="secondary-button" id="mrCsv"><i class="fa-solid fa-file-csv"></i> Unduh CSV</button>
+            </div>
+            <div id="mrSummary" class="meal-summary"></div>
+            <div class="table-wrap"><table><thead><tr><th>Lokasi Kerja</th><th>Jumlah</th></tr></thead><tbody id="mrTable"></tbody></table></div>
+          </article>
+        </div>
+
+        <div id="mealTab-menu" hidden>
+          <article class="panel" id="mmEditor">
+            <div class="panel-heading"><div><h3>Menu Makan</h3><p>Foto dan keterangan ini hanya informasi untuk karyawan, bukan pilihan.</p></div></div>
+            <div class="form-fields">
+              <div class="field"><label>Tanggal makan</label><input type="date" id="mmDate"></div>
+              <div class="field"><label>Jenis makan</label><select id="mmMeal"><option value="siang">Makan Siang</option><option value="malam">Makan Malam</option></select></div>
+              <div class="field full"><label>Keterangan menu</label><textarea id="mmTitle" maxlength="500" placeholder="Contoh: Nasi, ayam goreng, sayur asem, buah"></textarea></div>
+              <div class="field full"><label>Foto menu</label><input type="file" id="mmPhoto" accept="image/*"></div>
+              <div class="field full" id="mmPreview"></div>
+            </div>
+            <div class="modal-actions"><button type="button" class="secondary-button" id="mmDelete" hidden>Hapus Menu</button><button type="button" class="primary-button" id="mmSave"><i class="fa-solid fa-check"></i> Simpan Menu</button></div>
+          </article>
+        </div>
+
+        <div id="mealTab-settings" hidden>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Jam Pemesanan (WIB)</h3><p>Pemesanan di luar jam ini ditolak oleh sistem. Jam tutup yang lebih kecil dari jam buka berarti melewati tengah malam.</p></div><i class="fa-regular fa-clock"></i></div>
+            <div class="form-fields">
+              <div class="field"><label>Makan siang — buka</label><input type="time" id="cfgLunchOpen"></div>
+              <div class="field"><label>Makan siang — tutup</label><input type="time" id="cfgLunchClose"></div>
+              <div class="field"><label>Makan malam — buka</label><input type="time" id="cfgDinnerOpen"></div>
+              <div class="field"><label>Makan malam — tutup</label><input type="time" id="cfgDinnerClose"></div>
+            </div>
+            <div class="modal-actions"><button type="button" class="primary-button" id="cfgSave"><i class="fa-solid fa-check"></i> Simpan Jam</button></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><h3>Shift Karyawan</h3><p>Shift Pagi hanya bisa memesan makan siang, Shift Malam hanya makan malam. Karyawan tidak bisa mengubah shift sendiri.</p></div><i class="fa-solid fa-user-clock"></i></div>
+            <div class="toolbar">
+              <input id="shiftSearch" type="search" placeholder="Cari nama, departemen, atau ID card..." autocomplete="off">
+              <select id="shiftFilter" style="max-width:190px"><option value="">Semua</option><option value="none">Belum diatur</option><option value="pagi">Shift Pagi</option><option value="malam">Shift Malam</option></select>
+            </div>
+            <div class="toolbar">
+              <select id="shiftBulk" style="max-width:240px"><option value="pagi">Jadikan Shift Pagi</option><option value="malam">Jadikan Shift Malam</option><option value="">Kosongkan shift</option></select>
+              <button type="button" class="secondary-button" id="shiftBulkButton">Terapkan ke semua hasil pencarian</button>
+            </div>
+            <p class="meal-summary" id="shiftSummary"></p>
+            <div class="table-wrap"><table><thead><tr><th>Nama</th><th>Departemen</th><th>No ID Card</th><th>Shift</th></tr></thead><tbody id="shiftTable"></tbody></table></div>
+          </article>
+        </div>
+        <table hidden><tbody id="canteenTable"></tbody></table>
+      </section>
+      <section class="page" id="page-vendors">
+        <div class="page-heading"><div><span class="eyebrow">PARTNER MANAGEMENT</span><h1>Vendor</h1><p>Daftar vendor dan informasi kerja sama.</p></div><button class="primary-button" onclick="openForm('vendors')"><i class="fa-solid fa-plus"></i> Tambah Vendor</button></div>
+        <article class="panel"><div class="table-wrap"><table><thead><tr><th>Nama Vendor</th><th>Kategori</th><th>Kontak</th><th>Telepon/Email</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="vendorTable"></tbody></table></div></article>
+      </section>
+
+      <section class="page" id="page-vendor-portal">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">VENDOR PORTAL</span>
+            <h1>Portal Vendor</h1>
+            <p id="vendorPortalSub">Kelola catalog produk, konfirmasi Purchase Order (PO), dan update status pengiriman.</p>
+          </div>
+        </div>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Purchase Order (PO) Masuk</h3>
+              <p>Daftar PO resmi yang ditugaskan ke vendor Anda.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>No. PO</th><th>Tgl PO</th><th>Item & Jumlah</th><th>Perkiraan Tgl Tiba</th><th>Status PO</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="vendorPoTable"><tr><td colspan="6" class="empty-cell">Memuat PO vendor...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+      <section class="page" id="page-reports">
+        <div class="page-heading"><div><span class="eyebrow">REPORT CENTER</span><h1>Laporan</h1><p>Ringkasan data operasional GA.</p></div><button class="secondary-button" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak Laporan</button></div>
+        <div class="stats"><article class="stat-card"><span>Jenis Barang</span><h2 id="reportItems">0</h2></article><article class="stat-card"><span>Total Unit Stok</span><h2 id="reportStock">0</h2></article><article class="stat-card"><span>Total Aset</span><h2 id="reportAssets">0</h2></article><article class="stat-card"><span>Total Transaksi</span><h2 id="reportTransactions">0</h2></article></div>
+        <article class="panel"><div class="panel-heading"><div><h3>Catatan</h3><p>Gunakan tabel inventaris dan riwayat transaksi untuk memeriksa data.</p></div></div><p class="report-note">Pastikan setiap barang masuk dan keluar dicatat agar jumlah stok tetap akurat.</p></article>
+      </section>
+      <section class="page" id="page-history">
+        <div class="page-heading"><div><span class="eyebrow">MY ACTIVITY</span><h1>Riwayat</h1><p>Semua pengajuan Anda beserta status dan hasilnya.</p></div></div>
+        <div class="chip-bar" id="historyFilters">
+          <button type="button" class="chip active" data-history-filter="all">Semua</button>
+          <button type="button" class="chip" data-history-filter="service">Barang</button>
+          <button type="button" class="chip" data-history-filter="repair">Perbaikan</button>
+          <button type="button" class="chip" data-history-filter="vehicle">Kendaraan</button>
+          <button type="button" class="chip" data-history-filter="meal">Makan</button>
+          <button type="button" class="chip" data-history-filter="procurement">Pembelian</button>
+        </div>
+        <div class="history-list" id="employeeHistoryList"><p class="catalog-empty">Memuat riwayat...</p></div>
+      </section>
+      <section class="page" id="page-meals">
+        <div class="page-heading"><div><span class="eyebrow">MEAL ORDER</span><h1>Pesan Makan</h1><p>Lihat menu dan pesan makan sesuai shift kerja Anda.</p></div></div>
+        <div id="mealEmployeeView"></div>
+      </section>
+      <section class="page" id="page-profile">
+        <div class="page-heading"><div><span class="eyebrow">MY ACCOUNT</span><h1>Profil</h1><p>Informasi akun Anda.</p></div></div>
+        <article class="panel profile-card" id="profileCard"></article>
+        <button type="button" class="secondary-button profile-logout" id="profileLogoutButton"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
+      </section>
+
+      <section class="page" id="page-employees">
+        <div class="page-heading"><div><span class="eyebrow">EMPLOYEE MASTER DATA</span><h1>Master Karyawan</h1><p>Data seluruh karyawan: ID card, jabatan, lokasi kerja, tim, atasan, dan status.</p></div>
+          <div class="heading-actions">
+            <button type="button" class="primary-button" id="addEmployeeButton"><i class="fa-solid fa-plus"></i> Tambah Karyawan</button>
+            <button type="button" class="secondary-button" id="importEmployeesButton"><i class="fa-solid fa-file-import"></i> Import Excel</button>
+            <button type="button" class="secondary-button" id="exportEmployeesButton"><i class="fa-solid fa-file-export"></i> Export Excel</button>
+            <button type="button" class="secondary-button" id="templateEmployeesButton"><i class="fa-solid fa-download"></i> Template</button>
+            <input type="file" id="importEmployeesFile" accept=".xlsx,.xls,.csv" hidden>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="toolbar">
+            <input id="employeeSearch" type="search" placeholder="Cari nama, ID card, jabatan, tim, atasan..." autocomplete="off">
+            <select id="employeeStatusFilter" style="max-width:170px"><option value="">Semua status</option><option>Tetap</option><option>Kontrak</option></select>
+            <select id="employeeLocationFilter" style="max-width:200px"><option value="">Semua lokasi</option></select>
+          </div>
+          <p class="meal-summary" id="employeeSummary"></p>
+          <div class="table-wrap"><table><thead><tr><th>Nama</th><th>No ID Card</th><th>Jabatan</th><th>Departemen</th><th>Lokasi Kerja</th><th>Detail Pekerjaan</th><th>Tim</th><th>Atasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="employeeTable"><tr><td colspan="10" class="empty-cell">Memuat data karyawan...</td></tr></tbody></table></div>
+          <button type="button" class="secondary-button" id="employeeMore" hidden style="margin-top:12px">Tampilkan lebih banyak</button>
+        </article>
+      </section>
+      <section class="page" id="page-notifications">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">NOTIFICATIONS</span>
+            <h1>Notifikasi</h1>
+            <p>Pemberitahuan aktivitas laporan perbaikan, permintaan barang, dan akses sistem.</p>
+          </div>
+          <div class="heading-actions">
+            <button type="button" class="secondary-button" id="markAllReadButton"><i class="fa-solid fa-check-double"></i> Tandai Semua Dibaca</button>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="toolbar notif-toolbar">
+            <div class="notif-filter-tabs">
+              <button type="button" class="notif-tab active" data-notif-filter="all">Semua</button>
+              <button type="button" class="notif-tab" data-notif-filter="unread">Belum Dibaca <span class="notif-count-badge" id="notifUnreadCount" hidden>0</span></button>
+            </div>
+          </div>
+          <div class="notif-list" id="notificationsList">
+            <div class="empty-cell">Memuat notifikasi...</div>
+          </div>
+        </article>
+      </section>
+      <section class="page" id="page-users">
+        <div class="page-heading"><div><span class="eyebrow">ACCESS</span><h1>Pengguna Akses</h1><p>Akun yang sedang masuk dan pengaturan hak akses.</p></div></div>
+        <article class="panel"><div class="panel-heading"><div><h3>Akun yang sedang masuk</h3><p>Sesi aktif di perangkat ini.</p></div><i class="fa-solid fa-circle-user"></i></div><div id="currentSession" class="session-card"></div></article>
+        <article class="panel" id="accessManager" hidden><div class="panel-heading"><div><h3>Hak akses admin</h3><p>Atur menu yang boleh dikelola setiap admin. Pencabutan berlaku langsung.</p></div><i class="fa-solid fa-user-shield"></i></div><div class="table-wrap"><table><thead><tr><th>Nama</th><th>Role</th><th>Akses Menu</th><th>Aksi</th></tr></thead><tbody id="accessTable"><tr><td colspan="4" class="empty-cell">Memuat pengguna...</td></tr></tbody></table></div></article>
+      </section>
+      <footer>GA Management <span>•</span> General Affairs Operations</footer>
+    </div>
+  </main>
+
+  <nav class="employee-nav-bar mobile-bottom-nav" id="mobileBottomNav" hidden>
+    <button type="button" class="nav-item active" data-nav="requests">
+      <i class="fa-solid fa-boxes-packing"></i>
+      <span>Permintaan Barang</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="repairs">
+      <i class="fa-solid fa-screwdriver-wrench"></i>
+      <span>Lapor Perbaikan</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="vehicles">
+      <i class="fa-solid fa-car"></i>
+      <span>Permintaan Kendaraan</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="meals">
+      <i class="fa-solid fa-utensils"></i>
+      <span>Pesan Makan</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="history">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <span>Riwayat</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="profile">
+      <i class="fa-solid fa-user"></i>
+      <span>Profil</span>
+    </button>
+  </nav>
+
+<div class="modal" id="dataModal">
+  <div class="modal-card">
+    <div class="modal-heading"><div><span class="eyebrow">GA MANAGEMENT</span><h2 id="modalTitle">Tambah Data</h2></div><button class="icon-button" onclick="closeForm()"><i class="fa-solid fa-xmark"></i></button></div>
+    <form id="dataForm"><div id="formFields" class="form-fields"></div><div class="modal-actions"><button type="button" class="secondary-button" onclick="closeForm()">Batal</button><button type="submit" class="primary-button"><i class="fa-solid fa-check"></i> Simpan Data</button></div></form>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+</div>
+<script src="script.js?v=20261022"></script>
+<script type="module" src="login.js?v=20261022"></script>
+<script type="module" src="stock-firebase.js?v=20261022"></script>
+<script type="module" src="assets-firebase.js?v=20261022"></script>
+<script type="module" src="requests-firebase.js?v=20261022"></script>
+<script type="module" src="repairs-firebase.js?v=20261022"></script>
+<script type="module" src="vehicles-firebase.js?v=20261022"></script>
+<script type="module" src="meals-firebase.js?v=20261022"></script>
+<script type="module" src="employees-firebase.js?v=20261022"></script>
+<script type="module" src="masterdata-firebase.js?v=20261022"></script>
+<script type="module" src="inventory-update.js?v=20261022"></script>
+<script type="module" src="shell.js?v=20261022"></script>
+<script type="module" src="procurement-firebase.js?v=20261022"></script>
+<script type="module" src="import-inventory.js?v=20261022"></script>
+<script>
+window.addEventListener("load",function(){setTimeout(function(){
+var need={stock:"stock-firebase.js",vehicles:"vehicles-firebase.js",meals:"meals-firebase.js",employees:"employees-firebase.js",masterdata:"masterdata-firebase.js",inventoryUpdate:"inventory-update.js",shell:"shell.js"};
+var m=window.__gaModules||{},bad=[];for(var k in need){if(!m[k])bad.push(need[k]);}
+if(!bad.length)return;
+var d=document.createElement("div");
+d.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#B3261E;color:#fff;padding:10px 14px;font:14px/1.4 system-ui;text-align:center";
+d.textContent="Sebagian file belum termuat: "+bad.join(", ")+". Unggah semua file ke GitHub lalu tekan Ctrl+F5.";
+document.body.appendChild(d);},4000);});
+</script>
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}
+(function(){var ev=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();ev=e;var b=document.createElement("button");b.id="installAppBtn";b.type="button";b.textContent="Pasang Aplikasi";b.style.cssText="position:fixed;right:14px;bottom:14px;z-index:9998;background:#477B79;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:600 14px system-ui;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer";b.onclick=function(){b.remove();ev.prompt();ev=null;};document.body.appendChild(b);});window.addEventListener("appinstalled",function(){var b=document.getElementById("installAppBtn");if(b)b.remove();});})();
+</script>
+</body>
+</html>
