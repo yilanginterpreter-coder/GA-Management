@@ -547,6 +547,7 @@ function renderRecap() {
   if ($("mrSummary")) {
     $("mrSummary").innerHTML = `
       <div class="recap-total"><strong>${approved.length}</strong><span>porsi ${esc(MEAL_LABEL[meal].toLowerCase())} disetujui</span></div>
+      <small>${["siang", "malam"].map(m => `${MEAL_LABEL[m]}: <strong>${adminOrders.filter(o => o.meal === m && o.status === "Disetujui").length}</strong> disetujui`).join(" · ")} (ganti jenis makan di pilihan di atas)</small>
       ${pending ? `<small><i class="fa-solid fa-circle-info"></i> ${pending} pesanan masih menunggu persetujuan dan belum dihitung.</small>` : ""}`;
   }
   const body = $("mrTable");
@@ -605,6 +606,19 @@ async function loadMenuEditor() {
     data = snap.exists() ? snap.data() : null;
   } catch (error) {
     console.warn(error?.code);
+  }
+  if ($("mmEditor")) {
+    let hint = $("mmHint");
+    if (!hint) {
+      hint = document.createElement("p");
+      hint.id = "mmHint";
+      hint.className = "meal-summary";
+      $("mmEditor").querySelector(".form-fields")?.before(hint);
+    }
+    const c = cfg ? cycle(meal, cfg) : null;
+    hint.innerHTML = c
+      ? `Karyawan yang memesan ${esc(MEAL_LABEL[meal].toLowerCase())} saat ini melihat menu untuk <strong>${esc(niceDate(c.target))}</strong>. ${c.target === date ? "Tanggal yang kamu pilih sudah sesuai." : "Isi menu pada tanggal itu agar langsung tampil."}`
+      : "";
   }
   if ($("mmTitle")) $("mmTitle").value = data?.title || "";
   renderMenuPreview(data?.photoData || "");
