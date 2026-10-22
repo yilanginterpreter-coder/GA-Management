@@ -244,7 +244,10 @@ function renderArchiveDocsTable() {
 }
 
 $("uploadArchiveDocBtn")?.addEventListener("click", () => {
-  const poOptions = poList.map(p => `<option value="${esc(p.poNo)}">${esc(p.poNo)} - ${esc(p.vendorName)}</option>`).join("");
+  if (!poList.length) {
+    return toast("Belum ada Official PO. Buat PO Official dulu (menu Pengadaan), baru dokumennya bisa diarsipkan.");
+  }
+  const poOptions = '<option value="">Pilih Official PO</option>' + poList.map(p => `<option value="${esc(p.poNo)}">${esc(p.poNo)} - ${esc(p.vendorName)}</option>`).join("");
 
   openModal(
     "Arsipkan Dokumen Baru (Delivery Note / Invoice Archive)",
