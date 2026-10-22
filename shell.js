@@ -1767,8 +1767,10 @@ function syncTopScroll() {
     const table = wrap.querySelector("table");
     if (!bar || !table) return;
     const width = table.scrollWidth;
-    bar.firstChild.style.width = width + "px";
     bar.hidden = width <= wrap.clientWidth + 1;
+    // Samakan jangkauan: scrollbar vertikal memakai ruang di wrap, bukan di bar.
+    const gap = Math.max(0, bar.clientWidth - wrap.clientWidth);
+    bar.firstChild.style.width = (width + gap + 4) + "px";
   });
 }
 
