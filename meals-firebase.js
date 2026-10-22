@@ -547,7 +547,6 @@ function renderRecap() {
   if ($("mrSummary")) {
     $("mrSummary").innerHTML = `
       <div class="recap-total"><strong>${approved.length}</strong><span>porsi ${esc(MEAL_LABEL[meal].toLowerCase())} disetujui</span></div>
-      <small>${["siang", "malam"].map(m => `${MEAL_LABEL[m]}: <strong>${adminOrders.filter(o => o.meal === m && o.status === "Disetujui").length}</strong> disetujui`).join(" · ")} (ganti jenis makan di pilihan di atas)</small>
       ${pending ? `<small><i class="fa-solid fa-circle-info"></i> ${pending} pesanan masih menunggu persetujuan dan belum dihitung.</small>` : ""}`;
   }
   const body = $("mrTable");
