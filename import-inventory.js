@@ -633,6 +633,8 @@ function renderImport() {
         ${applyStock && mapping.stock >= 0 ? ` · ${s.withStock} barang dengan stok awal` : ""}
       </p>
 
+      ${s.exists > 0 ? `<p class="import-hint" style="background:#FFF4D6;padding:10px 12px;border-radius:10px"><strong>Import Excel ini hanya menambah barang baru.</strong> ${s.exists} kode sudah ada, jadi dilewati dan tidak diubah. Untuk mengganti nama, spesifikasi, satuan, dan lainnya pada barang yang sudah ada, tutup jendela ini lalu pakai tombol <strong>Perbarui dari Excel</strong>.</p>` : ""}
+
       <div class="table-wrap">
         <table>
           <thead><tr><th>Baris</th><th>Kode</th><th>Nama</th><th>Spesifikasi</th><th>Satuan</th><th>Stok</th><th>Status</th></tr></thead>
