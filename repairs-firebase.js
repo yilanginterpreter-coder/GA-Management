@@ -436,7 +436,7 @@ async function createRepair(data, photo) {
   const description = String(data.description || "").trim();
   const urgency = String(data.urgency || "");
 
-  if (!CATEGORIES.includes(category)) throw new Error("Pilih kategori kerusakan.");
+  if (!category.trim() || category.trim().length > 50) throw new Error("Kategori wajib diisi, maksimal 50 karakter.");
   if (!location || location.length > 150) {
     throw new Error("Lokasi wajib diisi, maksimal 150 karakter.");
   }
@@ -590,7 +590,7 @@ function openCreate() {
 
   openModal(
     "Lapor Kerusakan",
-    field("Kategori *", `<select name="category" required><option value="">Pilih kategori</option>${optionList(CATEGORIES)}</select>`, false) +
+    field("Kategori *", `<input name="category" required maxlength="50" placeholder="Isi manual, contoh: Listrik, AC, Atap bocor">`, false) +
     field("Tingkat Urgensi *", `<select name="urgency" required>${optionList(URGENCIES, "Sedang")}</select>`, false) +
     field("Lokasi *", `<input name="location" maxlength="150" required placeholder="Contoh: Mess B, kamar 12 / Gedung Produksi lantai 2">`) +
     field("Deskripsi Masalah *", `<textarea name="description" maxlength="1000" required placeholder="Jelaskan apa yang rusak dan bagaimana kondisinya"></textarea>`) +
