@@ -137,13 +137,13 @@ const CONFIGS = [
     statusOptions: VENDOR_STATUSES,
     fields: [
       ["name", "Nama Vendor", "text", null, true, 100, 30, ["nama vendor", "nama", "vendor", "name", "company", "供应商"]],
-      ["category", "Kategori", "select", VENDOR_CATEGORIES, true, 40, 16, ["kategori", "category"]],
+      ["category", "Kategori", "text", null, true, 40, 16, ["kategori", "category"]],
       ["contact", "Nama Kontak (PIC)", "text", null, false, 100, 22, ["nama kontak", "kontak", "pic", "contact", "contact person"]],
       ["phone", "Telepon / Email", "text", null, false, 100, 24, ["telepon / email", "telepon", "email", "phone", "no hp", "hp", "kontak vendor"]],
       ["status", "Status", "select", VENDOR_STATUSES, true, 20, 12, ["status"]],
       ["note", "Catatan", "textarea", null, false, 300, 36, ["catatan", "note", "keterangan"]]
     ],
-    defaults: { category: "Lainnya", status: "Aktif" },
+    defaults: { status: "Aktif" },
     sample: ["PT Contoh Sejahtera", "ATK", "Bu Ani", "0812-0000-0000", "Aktif", "Vendor ATK langganan"]
   },
   {
@@ -161,13 +161,13 @@ const CONFIGS = [
     statusOptions: VEHICLE_STATUSES,
     fields: [
       ["plate", "Nomor Polisi", "text", null, true, 20, 16, ["nomor polisi", "no polisi", "plat", "plat nomor", "plate", "no pol"]],
-      ["type", "Jenis Kendaraan", "select", VEHICLE_TYPES, true, 20, 16, ["jenis kendaraan", "jenis", "type", "tipe"]],
+      ["type", "Jenis Kendaraan", "text", null, true, 30, 16, ["jenis kendaraan", "jenis", "type", "tipe"]],
       ["model", "Merek / Model", "text", null, true, 100, 24, ["merek / model", "merek", "model", "merk"]],
       ["location", "Lokasi", "text", null, false, 100, 20, ["lokasi", "location"]],
       ["user", "Pengguna", "text", null, false, 100, 20, ["pengguna", "user", "pemakai"]],
       ["status", "Status", "select", VEHICLE_STATUSES, true, 20, 14, ["status"]]
     ],
-    defaults: { type: "Lainnya", status: "Tersedia" },
+    defaults: { status: "Tersedia" },
     sample: ["B 1234 XYZ", "Mobil", "Toyota Avanza", "Kantor Pusat", "Tim GA", "Tersedia"]
   }
 ];
@@ -290,7 +290,8 @@ function makeManager(cfg) {
     if (type === "textarea") {
       return `<textarea name="${key}" maxlength="${max}">${esc(value)}</textarea>`;
     }
-    return `<input name="${key}" maxlength="${max}" ${required ? "required" : ""} ${readonly} value="${esc(value)}">`;
+    const hint = key === "category" ? ' placeholder="Isi manual, contoh: ATK, Katering"' : key === "type" ? ' placeholder="Isi manual, contoh: Mobil, Motor, Bus"' : "";
+    return `<input name="${key}" maxlength="${max}" ${required ? "required" : ""} ${readonly}${hint} value="${esc(value)}">`;
   }
 
   function openForm(id = null) {
@@ -499,7 +500,7 @@ const ASSET_STATUSES = ["Aktif", "Dipinjam", "Dalam Perbaikan", "Tidak Aktif"];
 const ASSET_FIELDS = [
   ["code", "Kode Aset", "text", null, true, 60, 16, ["kode aset", "kode", "code", "no aset"]],
   ["name", "Nama Aset", "text", null, true, 150, 30, ["nama aset", "nama", "name"]],
-  ["category", "Kategori", "select", ASSET_CATEGORIES, true, 40, 16, ["kategori", "category"]],
+  ["category", "Kategori", "text", null, true, 40, 16, ["kategori", "category"]],
   ["location", "Lokasi", "text", null, true, 150, 22, ["lokasi", "location"]],
   ["owner", "Penanggung Jawab", "text", null, false, 150, 22, ["penanggung jawab", "pj", "owner", "pemilik"]],
   ["condition", "Kondisi", "select", ASSET_CONDITIONS, true, 20, 16, ["kondisi", "condition"]],
@@ -524,13 +525,15 @@ function parseDate(raw) {
   return "";
 }
 
+const text40 = v => String(v ?? "").trim().slice(0, 40);
+
 function assetClean(input) {
   const code = String(input.code ?? "").trim().toUpperCase().replace(/\s+/g, "-");
   const valueText = String(input.value ?? "").replace(/[^\d.]/g, "");
   return {
     code,
     name: String(input.name ?? "").trim(),
-    category: pickOption(ASSET_CATEGORIES, input.category, "Lainnya"),
+    category: text40(input.category),
     location: String(input.location ?? "").trim(),
     owner: String(input.owner ?? "").trim(),
     condition: pickOption(ASSET_CONDITIONS, input.condition, "Baik"),
@@ -543,6 +546,7 @@ function assetClean(input) {
 function assetValidate(rec) {
   if (!/^[A-Z0-9_-]{2,60}$/.test(rec.code)) return "Kode aset 2-60 karakter: huruf, angka, strip, garis bawah.";
   if (!rec.name || rec.name.length > 150) return "Nama aset wajib, maksimal 150 karakter.";
+  if (!rec.category) return "Kategori wajib diisi.";
   if (!rec.location || rec.location.length > 150) return "Lokasi wajib, maksimal 150 karakter.";
   if (rec.owner.length > 150) return "Penanggung jawab maksimal 150 karakter.";
   return "";
