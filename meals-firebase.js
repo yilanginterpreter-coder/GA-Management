@@ -205,12 +205,14 @@ async function loadEmployee() {
   if (cfg && meal) {
     const c = cycle(meal, cfg);
     try {
-      const [menuSnap, orderSnap] = await Promise.all([
+      const [menuRes, orderRes] = await Promise.allSettled([
         getDoc(doc(db, "mealMenus", `${c.target}_${meal}`)),
         getDoc(doc(db, "mealOrders", `${user.uid}_${c.target}_${meal}`))
       ]);
-      myMenu = menuSnap.exists() ? menuSnap.data() : null;
-      myOrder = orderSnap.exists() ? orderSnap.data() : null;
+      if (menuRes.status === "rejected") console.warn("Menu tidak dapat dimuat:", menuRes.reason?.code);
+      if (orderRes.status === "rejected") console.warn("Pesanan tidak dapat dimuat:", orderRes.reason?.code);
+      myMenu = menuRes.status === "fulfilled" && menuRes.value.exists() ? menuRes.value.data() : null;
+      myOrder = orderRes.status === "fulfilled" && orderRes.value.exists() ? orderRes.value.data() : null;
     } catch (error) {
       console.warn("Data makan tidak dapat dimuat:", error?.code);
       myMenu = null;
